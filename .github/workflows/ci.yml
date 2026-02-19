@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "copilot/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  backend-ci:
+    name: Backend – install & test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install --upgrade uv
+
+      - name: Install dependencies
+        run: uv pip install --system ".[dev]"
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: Run pytest
+        run: pytest --tb=short
