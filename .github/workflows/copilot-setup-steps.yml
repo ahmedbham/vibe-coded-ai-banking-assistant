@@ -1,0 +1,88 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # MUST be named exactly `copilot-setup-steps` or Copilot won't pick it up. [1](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    # Use a configured GitHub Actions Environment when available so Environment Secrets are accessible.
+    # Falls back to "dev" if REPO/ORG variable GH_ACTIONS_ENVIRONMENT is not set.
+    # (subject to any environment protection rules/approvals you configure). [6](https://dev.to/pwd9000/using-github-copilot-coding-agent-for-devops-automation-3f43)[3](https://bing.com/search?q=GitHub+Actions+hosted+runner+software+installed+list+ubuntu-latest+windows-latest+macos-latest)
+    environment: ${{ vars.GH_ACTIONS_ENVIRONMENT || 'dev' }}
+
+    # Minimum permissions:
+    # - contents:read => checkout
+    # - id-token:write => OIDC token minting for Azure auth [3](https://bing.com/search?q=GitHub+Actions+hosted+runner+software+installed+list+ubuntu-latest+windows-latest+macos-latest)
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      # Reduce risk of printing sensitive output in logs. [5](https://bing.com/search?q=GitHub+Copilot+Chat+mode+VS+Code+agent+mode+coding+agent+copilot+cli+documentation)
+      AZURE_CORE_OUTPUT: none
+
+      # Use the same environment name in scripts/tags
+      GH_ACTIONS_ENVIRONMENT: dev
+
+      # Default location (override via environment variables if desired)
+      AZURE_LOCATION: westus2
+
+      # Naming/TTL guardrails for ephemeral test RGs
+      IAC_PREFIX: copilot-iac
+      IAC_TTL_HOURS: "6"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Authenticate to Azure securely using OIDC (no long-lived secrets). [6](https://dev.to/pwd9000/using-github-copilot-coding-agent-for-devops-automation-3f43)[3](https://bing.com/search?q=GitHub+Actions+hosted+runner+software+installed+list+ubuntu-latest+windows-latest+macos-latest)[5](https://bing.com/search?q=GitHub+Copilot+Chat+mode+VS+Code+agent+mode+coding+agent+copilot+cli+documentation)
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure context
+        run: |
+          az account show --output table
+          echo "AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+          echo "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
+          echo "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "AZURE_LOCATION=${AZURE_LOCATION}" >> $GITHUB_ENV
+          echo "GH_ACTIONS_ENVIRONMENT=${GH_ACTIONS_ENVIRONMENT}" >> $GITHUB_ENV
+
+      # Install azd via official installer script. [7](https://www.youtube.com/watch?v=hfHR0aeYF9o)[8](https://aiwiki.ai/wiki/Claude_Code)
+      - name: Install Azure Developer CLI (azd)
+        run: |
+          curl -fsSL https://aka.ms/install-azd.sh | bash
+          azd version
+
+      # Ensure Bicep CLI is available (via az bicep). [8](https://aiwiki.ai/wiki/Claude_Code)
+      - name: Ensure Bicep CLI available
+        run: |
+          az bicep upgrade || az bicep install
+          az bicep version
+
+      # Compute an ephemeral RG name for the run (the validation script will reuse this).
+      - name: Set ephemeral resource group name (IAC_RG)
+        run: |
+          RG="${IAC_PREFIX}-${GITHUB_REPOSITORY##*/}-${GITHUB_RUN_ID}"
+          echo "IAC_RG=${RG}" >> $GITHUB_ENV
+          echo "IAC_RG=${RG}"
+
+      # Optional: fast-fail compile check if canonical bicep exists
+      - name: Optional Bicep build (if present)
+        run: |
+          if [ -f "infra/main.bicep" ]; then
+            az bicep build --file infra/main.bicep
+          fi
