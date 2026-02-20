@@ -135,3 +135,37 @@ This repository is a **Multi-agent Banking Assistant** built with Python and the
 - Bypass type checking with `# type: ignore` or TypeScript `any` without a justified comment.
 - Commit large binary files or generated build artefacts to the repository.
 - Create ARM JSON templates; use Bicep instead.
+
+# Copilot Coding Agent – IaC Validation Guardrails (azd + Bicep) – Environment: dev
+
+## GitHub Actions Environment requirement
+All provisioning/validation runs MUST use the GitHub Actions Environment named **dev**.
+- Secrets are retrieved from **Environment secrets** (Settings → Environments → dev).
+- If the environment has approval gates/protection rules, the job will not access secrets until approved. [6](https://dev.to/pwd9000/using-github-copilot-coding-agent-for-devops-automation-3f43)[3](https://bing.com/search?q=GitHub+Actions+hosted+runner+software+installed+list+ubuntu-latest+windows-latest+macos-latest)
+
+## Goal
+Provision ephemeral Azure infrastructure for validation/testing of IaC using:
+- Azure Developer CLI (azd)
+- Bicep deployments via Azure CLI
+
+## Non‑negotiable guardrails
+1. **Only deploy to ephemeral test resource groups** created for the current session:
+   - Prefer `IAC_RG` if set.
+   - Otherwise generate a new RG with prefix `copilot-iac-` and a unique suffix.
+2. **Never deploy to production subscriptions or shared resource groups.**
+3. **Always clean up**:
+   - Use `scripts/iac-validate.sh` (create → deploy → validate → destroy).
+   - Cleanup must run via `trap` even on failures (no orphan resources/cost).
+4. **Use OIDC-based Azure authentication** (no long-lived secrets). [6](https://dev.to/pwd9000/using-github-copilot-coding-agent-for-devops-automation-3f43)[3](https://bing.com/search?q=GitHub+Actions+hosted+runner+software+installed+list+ubuntu-latest+windows-latest+macos-latest)
+5. **Minimize log output**:
+   - Avoid printing secrets or sensitive configuration.
+   - Prefer `AZURE_CORE_OUTPUT=none`. [5](https://bing.com/search?q=GitHub+Copilot+Chat+mode+VS+Code+agent+mode+coding+agent+copilot+cli+documentation)
+
+## Expected repository layout (defaults)
+- Bicep template: `infra/main.bicep` (override with `BICEP_FILE`)
+- Bicep parameters (optional): `infra/parameters.json` (override with `BICEP_PARAMS_FILE`)
+- AZD project root contains `azure.yaml`
+
+## How to run the validation workflow (preferred)
+```bash
+bash scripts/iac-validate.sh
