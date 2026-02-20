@@ -46,6 +46,7 @@ This repository is a **Multi-agent Banking Assistant** built with Python and the
 
 #### Infrastructure as Code
 - **Bicep**: All Azure infrastructure must be defined as Bicep templates. Do not use ARM JSON templates.
+- **Azure Developer CLI (azd)**: Use for local development and provisioning of Azure resources.
 - **Docker**: Multi-stage Dockerfiles for all services to minimise image size.
 - **Azure CLI (`az`)**: Used for initial Azure resource provisioning scripts.
 - **GitHub CLI (`gh`)**: Used for GitHub repository operations.
