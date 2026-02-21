@@ -7,6 +7,22 @@ on:
     branches: ["main"]
 
 jobs:
+  bicep-validate:
+    name: Bicep – build & validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bicep CLI
+        run: |
+          az bicep install
+
+      - name: Build (compile) Bicep templates
+        run: az bicep build --file infra/main.bicep
+
   backend-ci:
     name: Backend – install & test
     runs-on: ubuntu-latest
