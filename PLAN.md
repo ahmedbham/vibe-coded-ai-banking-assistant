@@ -2,6 +2,8 @@
 
 This document breaks the three-tier multi-agent banking assistant (see [`docs/architecture.md`](docs/architecture.md)) into a series of logical, independently testable GitHub Issues. Each issue produces a runnable, verifiable increment so it can be assigned, reviewed, and tested in isolation before the next step begins.
 
+**Incremental Provisioning Principle:** Every issue that builds a component destined for Azure is immediately followed by a paired issue that provisions the required Azure resources, deploys the component, and validates the deployment. This ensures infrastructure is grown incrementally alongside the application rather than in one large batch at the end.
+
 ---
 
 ## Architecture Summary
@@ -52,7 +54,31 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 2 – Mock Account Service (Backend Tier)
+### Issue 2 – Base Azure Infrastructure
+
+**Goal:** Provision the shared Azure resources that all subsequent components will depend on. This foundation must exist before any component is deployed to Azure.
+
+**Azure resources to provision:**
+- Azure Resource Group (environment-specific, e.g. `rg-banking-dev`).
+- Azure Container Registry (ACR) for all container images.
+- Azure Container Apps Environment (shared across all Container Apps).
+- Azure Key Vault for secrets management.
+- Azure Monitor workspace + Application Insights instance.
+- User-assigned Managed Identity with base role assignments (ACR pull, Key Vault Secrets User).
+
+**Tasks:**
+- Implement `infra/modules/container-registry.bicep`, `infra/modules/container-apps-env.bicep`, `infra/modules/key-vault.bicep`, `infra/modules/monitor.bicep`, `infra/modules/managed-identity.bicep`.
+- Implement `infra/main.bicep` composing all modules; parameterise `environment`, `location`, `project`, and `owner` tags on every resource.
+- Add `infra/parameters.dev.json` with dev-environment defaults.
+- Add `scripts/deploy-base-infra.sh` that runs `az deployment group create` and prints resource endpoints.
+- Validate templates with `az bicep build --file infra/main.bicep` in CI.
+- Run `az deployment group what-if` against a test subscription before applying.
+
+**Testable outcome:** `az bicep build --file infra/main.bicep` succeeds; `scripts/deploy-base-infra.sh` provisions all resources in a test resource group without errors; ACR login succeeds from a local workstation.
+
+---
+
+### Issue 3 – Mock Account Service (Backend Tier)
 
 **Goal:** Implement the Account Service as a standalone FastAPI mock REST API that can be run and tested independently.
 
@@ -73,7 +99,23 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 3 – Mock Transactions (Reporting) Service (Backend Tier)
+### Issue 4 – Containerize & Deploy Account Service to Azure Container Apps
+
+**Goal:** Package the Account Service as a Docker image, push it to ACR, and deploy it as a Container App. Validate the live deployment end-to-end.
+
+**Tasks:**
+- Finalise the multi-stage `backend/Dockerfile` to produce a minimal, non-root image for the Account Service.
+- Add `infra/modules/container-app-account-service.bicep` defining the Container App (image, port, environment variables, Managed Identity binding).
+- Extend `infra/main.bicep` to include the new module (using the `existing` keyword for shared resources).
+- Add `scripts/deploy-account-service.sh` that builds and pushes the image to ACR then runs `az deployment group create`.
+- Run `az deployment group what-if` before applying.
+- Smoke-test the deployed endpoint: `curl https://<fqdn>/accounts/john_doe` returns the expected mock JSON.
+
+**Testable outcome:** Container App is running in Azure; `GET /accounts/john_doe` against the live URL returns mock account data; `az bicep build` succeeds on the updated `infra/main.bicep`.
+
+---
+
+### Issue 5 – Mock Transactions (Reporting) Service (Backend Tier)
 
 **Goal:** Implement the Transactions/Reporting Service as a standalone FastAPI mock REST API.
 
@@ -93,7 +135,22 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 4 – Mock Payments Service (Backend Tier)
+### Issue 6 – Containerize & Deploy Transactions Service to Azure Container Apps
+
+**Goal:** Package the Transactions Service as a Docker image and deploy it as a Container App, mirroring the pattern from Issue 4.
+
+**Tasks:**
+- Add `infra/modules/container-app-transactions-service.bicep` defining the Container App.
+- Extend `infra/main.bicep` with the new module.
+- Add `scripts/deploy-transactions-service.sh` (build → push → deploy).
+- Run `az deployment group what-if` before applying.
+- Smoke-test: `GET /transactions/search?query=coffee` against the live URL returns mock results.
+
+**Testable outcome:** Transactions Service Container App is running in Azure; live smoke tests pass; `az bicep build` succeeds.
+
+---
+
+### Issue 7 – Mock Payments Service (Backend Tier)
 
 **Goal:** Implement the Payments Service as a standalone FastAPI mock REST API.
 
@@ -111,7 +168,22 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 5 – FastMCP Layer (Backend Tier)
+### Issue 8 – Containerize & Deploy Payments Service to Azure Container Apps
+
+**Goal:** Package the Payments Service as a Docker image and deploy it as a Container App.
+
+**Tasks:**
+- Add `infra/modules/container-app-payments-service.bicep` defining the Container App.
+- Extend `infra/main.bicep` with the new module.
+- Add `scripts/deploy-payments-service.sh` (build → push → deploy).
+- Run `az deployment group what-if` before applying.
+- Smoke-test: `POST /payments` against the live URL returns a payment confirmation ID.
+
+**Testable outcome:** Payments Service Container App is running in Azure; live smoke tests pass; `az bicep build` succeeds.
+
+---
+
+### Issue 9 – FastMCP Layer (Backend Tier)
 
 **Goal:** Wrap each mock service with **FastMCP** to expose its operations as MCP-compliant tools consumable by AI agents over HTTP Streaming.
 
@@ -127,7 +199,23 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 6 – Azure Document Intelligence Integration (ScanInvoice Tool)
+### Issue 10 – Containerize & Deploy FastMCP Servers to Azure Container Apps
+
+**Goal:** Package and deploy all three FastMCP servers (Account, Transactions, Payments) as Container Apps, pointing each at its already-deployed backend service.
+
+**Tasks:**
+- Add `infra/modules/container-app-account-mcp.bicep`, `container-app-transactions-mcp.bicep`, `container-app-payments-mcp.bicep`.
+- Configure each MCP Container App with the environment variable pointing to the corresponding backend service URL (resolved from deployed Container App FQDNs).
+- Extend `infra/main.bicep` with the three new modules.
+- Add `scripts/deploy-mcp-servers.sh` (build → push → deploy all three).
+- Run `az deployment group what-if` before applying.
+- Smoke-test each MCP tool endpoint against the live URLs; confirm tool responses match mock data.
+
+**Testable outcome:** All three MCP Container Apps are running in Azure; tool-call smoke tests pass against live endpoints; `az bicep build` succeeds.
+
+---
+
+### Issue 11 – Azure Document Intelligence Integration (ScanInvoice Tool)
 
 **Goal:** Add the `ScanInvoice` MCP tool used by the Payment Agent to extract invoice data from uploaded images/PDFs using Azure Document Intelligence.
 
@@ -138,11 +226,27 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 - Add unit tests using `pytest` + `unittest.mock` to mock the Azure SDK calls and verify field extraction logic.
 - Document required Azure resource setup in a `docs/setup-document-intelligence.md` file.
 
-**Testable outcome:** `pytest backend/tests/test_document_mcp.py` passes with mocked Azure SDK; real call succeeds against a provisioned Document Intelligence resource.
+**Testable outcome:** `pytest backend/tests/test_document_mcp.py` passes with mocked Azure SDK.
 
 ---
 
-### Issue 7 – Account Agent (Middle Tier)
+### Issue 12 – Provision Azure Document Intelligence & Deploy Document MCP to Azure
+
+**Goal:** Provision an Azure Document Intelligence resource and deploy the Document MCP server as a Container App, then validate real invoice extraction end-to-end.
+
+**Tasks:**
+- Add `infra/modules/document-intelligence.bicep` defining the Cognitive Services account (`kind: FormRecognizer`).
+- Add `infra/modules/container-app-document-mcp.bicep` with the `DOCUMENT_INTELLIGENCE_ENDPOINT` environment variable sourced from the Bicep output.
+- Extend `infra/main.bicep` with the two new modules; grant the Managed Identity `Cognitive Services User` role on the Document Intelligence resource.
+- Add `scripts/deploy-document-mcp.sh` (provision resource → build image → push → deploy Container App).
+- Run `az deployment group what-if` before applying.
+- Integration test: call `scanInvoice` against the live MCP endpoint with a sample invoice PDF; verify extracted fields.
+
+**Testable outcome:** Document Intelligence resource is provisioned; `scanInvoice` MCP tool returns real extracted data from a sample invoice against the live Azure endpoint; `az bicep build` succeeds.
+
+---
+
+### Issue 13 – Account Agent (Middle Tier)
 
 **Goal:** Implement the **Account Agent** using the Microsoft Agent Framework (MAF), bound to the Account Service MCP tools.
 
@@ -152,13 +256,13 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
   - MCP tool binding to `account_mcp` (URL configurable via environment variable).
   - GPT-4.1 via Azure OpenAI (`DefaultAzureCredential`).
 - Add unit tests in `backend/tests/test_account_agent.py` mocking the MAF SDK and MCP tool calls.
-- Add an integration test that runs the agent against the local mock MCP server (Issue 5).
+- Add an integration test that runs the agent against the local mock MCP server (Issue 9).
 
 **Testable outcome:** `pytest backend/tests/test_account_agent.py` passes; running the agent locally returns account info for a mock user.
 
 ---
 
-### Issue 8 – Transaction Agent (Middle Tier)
+### Issue 14 – Transaction Agent (Middle Tier)
 
 **Goal:** Implement the **Transaction Agent** using MAF, bound to the Account and Transactions MCP tools.
 
@@ -173,7 +277,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 9 – Payment Agent (Middle Tier)
+### Issue 15 – Payment Agent (Middle Tier)
 
 **Goal:** Implement the **Payment Agent** using MAF, bound to Account, Payments, Transactions, and ScanInvoice MCP tools.
 
@@ -189,7 +293,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 10 – Supervisor Agent (Middle Tier)
+### Issue 16 – Supervisor Agent (Middle Tier)
 
 **Goal:** Implement the **Supervisor Agent** using MAF to triage user messages and hand off to the correct specialist agent.
 
@@ -204,7 +308,30 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 11 – AI Chat API (Middle Tier FastAPI)
+### Issue 17 – Provision Azure AI Foundry & Deploy Agents to Foundry Agent Service
+
+**Goal:** Provision the Azure AI Foundry project, Azure OpenAI resource, and Foundry Agent Service deployment, then deploy all four agents and validate end-to-end routing in Azure.
+
+**Azure resources to provision:**
+- Azure AI Foundry Hub + Project.
+- Azure OpenAI resource with GPT-4.1 model deployment.
+- Foundry Agent Service deployment for all four agents (Supervisor, Account, Transaction, Payment).
+
+**Tasks:**
+- Add `infra/modules/ai-foundry.bicep` (Hub + Project).
+- Add `infra/modules/openai.bicep` (Azure OpenAI resource + GPT-4.1 deployment).
+- Add `infra/modules/foundry-agent-service.bicep` referencing all four agent definitions.
+- Grant the Managed Identity `Cognitive Services OpenAI User` and `Azure AI Developer` roles.
+- Extend `infra/main.bicep` with all new modules.
+- Add `scripts/deploy-agents.sh` that provisions resources and registers agents on Foundry Agent Service.
+- Run `az deployment group what-if` before applying.
+- Integration test: send a "Show me my balance" prompt to the deployed Supervisor Agent; confirm it routes to the Account Agent and returns real mock-service data via the live MCP servers.
+
+**Testable outcome:** All four agents are registered on Foundry Agent Service; end-to-end routing test passes against Azure; `az bicep build` succeeds.
+
+---
+
+### Issue 18 – AI Chat API (Middle Tier FastAPI)
 
 **Goal:** Expose a single `/chat` HTTP endpoint that fronts the Supervisor Agent and returns streaming responses.
 
@@ -217,11 +344,26 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 - Add `pytest` tests for the `/chat` endpoint using `httpx.AsyncClient` with mocked agent responses.
 - Add a `docker-compose.yml` at the repo root for local end-to-end development (all services + MCP servers + API).
 
-**Testable outcome:** `pytest backend/tests/test_chat_api.py` passes; `curl -X POST /chat -d '{"message":"What is my balance?"}'` returns a streamed response.
+**Testable outcome:** `pytest backend/tests/test_chat_api.py` passes; `curl -X POST /chat -d '{"message":"What is my balance?"}'` returns a streamed response locally.
 
 ---
 
-### Issue 12 – Simple Chat Frontend (`frontend/simple-chat`)
+### Issue 19 – Containerize & Deploy AI Chat API to Azure Container Apps
+
+**Goal:** Package the AI Chat API as a Docker image, deploy it as a Container App, and validate streaming chat responses against the live Azure stack.
+
+**Tasks:**
+- Add `infra/modules/container-app-chat-api.bicep` with environment variables for all MCP server URLs, the Foundry Agent Service endpoint, and Application Insights connection string.
+- Extend `infra/main.bicep` with the new module.
+- Add `scripts/deploy-chat-api.sh` (build → push → deploy).
+- Run `az deployment group what-if` before applying.
+- Smoke-test: `curl -X POST https://<fqdn>/chat -d '{"message":"What is my balance?","session_id":"test"}'` returns a streamed response from the live Supervisor Agent.
+
+**Testable outcome:** AI Chat API Container App is running in Azure; streaming chat smoke test passes against the live URL; `az bicep build` succeeds.
+
+---
+
+### Issue 20 – Simple Chat Frontend (`frontend/simple-chat`)
 
 **Goal:** Build the lightweight React chat UI that talks to the AI Chat API.
 
@@ -240,7 +382,22 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 13 – Full Banking Web Frontend (`frontend/banking-web`)
+### Issue 21 – Containerize & Deploy Simple Chat Frontend to Azure Container Apps
+
+**Goal:** Deploy the Simple Chat frontend as a Container App and validate the full user-facing chat flow in Azure.
+
+**Tasks:**
+- Add `infra/modules/container-app-simple-chat.bicep` with the `VITE_API_URL` build argument set to the deployed Chat API URL.
+- Extend `infra/main.bicep` with the new module.
+- Add `scripts/deploy-simple-chat.sh` (build → push → deploy).
+- Run `az deployment group what-if` before applying.
+- Smoke-test: open the deployed URL in a browser; send "What is my balance?" and verify a response appears.
+
+**Testable outcome:** Simple Chat Container App is accessible at its Azure URL; end-to-end browser smoke test passes; `az bicep build` succeeds.
+
+---
+
+### Issue 22 – Full Banking Web Frontend (`frontend/banking-web`)
 
 **Goal:** Build the full React banking UI with richer data display on top of the chat interface.
 
@@ -259,35 +416,22 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 14 – Azure Infrastructure (Bicep)
+### Issue 23 – Containerize & Deploy Full Banking Web Frontend to Azure Container Apps
 
-**Goal:** Define all Azure resources needed to host the application in Azure Container Apps using Bicep IaC.
-
-**Resources to define:**
-- Azure Container Registry (ACR) for container images.
-- Azure Container Apps Environment + individual Container Apps for:
-  - `backend-api` (AI Chat API)
-  - `account-service`, `transactions-service`, `payments-service` (Mock REST)
-  - `account-mcp`, `transactions-mcp`, `payments-mcp`, `document-mcp` (FastMCP)
-  - `frontend-banking-web`, `frontend-simple-chat`
-- Azure AI Foundry project + Foundry Agent Service deployment.
-- Azure OpenAI resource with GPT-4.1 deployment.
-- Azure Document Intelligence resource.
-- Azure Key Vault for secrets.
-- Azure Monitor + Application Insights workspace.
-- Managed Identity with role assignments.
+**Goal:** Deploy the Banking Web frontend as a Container App and validate all dashboard views against the live Azure stack.
 
 **Tasks:**
-- Implement modular Bicep templates under `infra/` (one module per resource type).
-- Parameterise all environment-specific values (`environment`, `location`, `project`, `owner` tags on every resource).
-- Add a `deploy.sh` script that provisions resources with `az deployment group create`.
-- Validate templates with `az bicep build` in CI.
+- Add `infra/modules/container-app-banking-web.bicep` with the `VITE_API_URL` build argument and any other required environment variables.
+- Extend `infra/main.bicep` with the new module.
+- Add `scripts/deploy-banking-web.sh` (build → push → deploy).
+- Run `az deployment group what-if` before applying.
+- Smoke-test: open the deployed URL; verify the account summary, transaction table, and chat panel all render and respond correctly.
 
-**Testable outcome:** `az bicep build --file infra/main.bicep` succeeds; `az deployment group create --what-if` completes without errors against a test subscription.
+**Testable outcome:** Banking Web Container App is accessible at its Azure URL; all dashboard views render with live data; `az bicep build` succeeds.
 
 ---
 
-### Issue 15 – Docker & Local docker-compose Setup
+### Issue 24 – Docker & Local docker-compose Setup
 
 **Goal:** Ensure every service can be built as a Docker image and the full stack can be run locally with `docker compose up`.
 
@@ -303,7 +447,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 16 – CI/CD GitHub Actions Pipelines
+### Issue 25 – CI/CD GitHub Actions Pipelines
 
 **Goal:** Automate build, test, and deploy for every push and pull request.
 
@@ -313,19 +457,20 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 |---|---|---|
 | `ci.yml` | PR / push to `main` | Lint (ruff), type-check (mypy / tsc), unit tests (pytest + Vitest), `az bicep build` |
 | `build-push.yml` | Push to `main` | Build & push all Docker images to ACR |
-| `deploy-infra.yml` | Manual / release tag | `az deployment group create` with Bicep templates |
+| `deploy-infra.yml` | Manual / release tag | `az deployment group create` with Bicep templates (incremental, module by module) |
 | `deploy-apps.yml` | After `build-push.yml` | Update Container App revisions with new image tags |
 
 **Tasks:**
 - Implement all four workflow files under `.github/workflows/`.
 - Use `azure/login` with Federated Identity (OIDC) — no long-lived secrets.
 - Cache `uv` and `npm` dependencies for faster builds.
+- Each deployment job in `deploy-infra.yml` targets only the modules changed in the current release, keeping deployments incremental.
 
 **Testable outcome:** All four workflows run successfully on a push to `main`; a PR triggers `ci.yml` with green status checks.
 
 ---
 
-### Issue 17 – Observability & Security Hardening
+### Issue 26 – Observability & Security Hardening
 
 **Goal:** Add end-to-end observability and enforce the security requirements from the architecture.
 
@@ -341,9 +486,9 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 18 – End-to-End Integration Tests
+### Issue 27 – End-to-End Integration Tests
 
-**Goal:** Validate the full three-tier flow with automated integration tests that run against the local `docker-compose` stack.
+**Goal:** Validate the full three-tier flow with automated integration tests that run against both the local `docker-compose` stack and the live Azure deployment.
 
 **Test scenarios to cover:**
 1. User asks for account balance → Supervisor routes to Account Agent → returns mock balance.
@@ -353,11 +498,11 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 5. User repeats a previous payment → Payment Agent retrieves transaction history → resubmits payment.
 
 **Tasks:**
-- Implement `backend/tests/integration/test_e2e.py` using `httpx` against the running `docker-compose` stack.
-- Implement `frontend/simple-chat/src/__tests__/e2e.test.tsx` (Playwright) exercising the chat UI.
-- Add an `integration-tests.yml` GitHub Actions workflow that spins up `docker-compose` and runs both test suites.
+- Implement `backend/tests/integration/test_e2e.py` using `httpx` against the running `docker-compose` stack and against the live Azure Chat API URL.
+- Implement `frontend/simple-chat/src/__tests__/e2e.test.tsx` (Playwright) exercising the chat UI against both local and Azure deployments.
+- Add an `integration-tests.yml` GitHub Actions workflow that spins up `docker-compose` and also runs smoke tests against the deployed Azure environment.
 
-**Testable outcome:** All five scenarios pass; CI workflow is green.
+**Testable outcome:** All five scenarios pass locally and in Azure; CI workflow is green.
 
 ---
 
@@ -365,34 +510,42 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ```
 Issue 1  (Scaffolding)
-    ├── Issue 2  (Account Service)  ──────────────────────────────────────────────────┐
-    ├── Issue 3  (Transactions Service)  ────────────────────────────────────────────┤
-    ├── Issue 4  (Payments Service)  ──────────────────────────────────────────────── Issue 5 (FastMCP)
-    │                                                                                    │
-    ├── Issue 6  (ScanInvoice / Doc Intelligence)  ──────────────────────────────────┤
-    │                                                                                    │
-    │                                                                         ┌──────────▼──────────┐
-    │                                                                         │  Issue 7  (Account  │
-    │                                                                         │  Agent)             │
-    │                                                                         │  Issue 8  (Txn      │
-    │                                                                         │  Agent)             │
-    │                                                                         │  Issue 9  (Payment  │
-    │                                                                         │  Agent)             │
-    │                                                                         └──────────┬──────────┘
-    │                                                                                    │
-    │                                                                         Issue 10 (Supervisor)
-    │                                                                                    │
-    │                                                                         Issue 11 (Chat API)
-    │                                                                                    │
-    ├── Issue 12 (Simple Chat UI) ──────────────────────────────────────────────────────┤
-    ├── Issue 13 (Banking Web UI) ──────────────────────────────────────────────────────┤
-    │                                                                                    │
-    ├── Issue 14 (Bicep Infra) ──────────────────────────────────────────────── Issue 16 (CI/CD)
-    └── Issue 15 (Docker / docker-compose) ─────────────────────────────────────────────┤
-                                                                                         │
-                                                                              Issue 17 (Observability)
-                                                                                         │
-                                                                              Issue 18 (E2E Tests)
+    │
+    └── Issue 2  (Base Azure Infra: ACR, Container Apps Env, Key Vault, Monitor)
+            │
+            ├── Issue 3  (Account Service – local) ──► Issue 4  (Deploy Account Service → Azure)
+            │
+            ├── Issue 5  (Transactions Service – local) ──► Issue 6  (Deploy Transactions Service → Azure)
+            │
+            ├── Issue 7  (Payments Service – local) ──► Issue 8  (Deploy Payments Service → Azure)
+            │
+            │   [Issues 4, 6, 8 must complete before Issue 9]
+            │
+            ├── Issue 9  (FastMCP Layer – local) ──► Issue 10 (Deploy FastMCP Servers → Azure)
+            │
+            ├── Issue 11 (ScanInvoice / Doc Intelligence – local) ──► Issue 12 (Provision Doc Intelligence + Deploy Doc MCP → Azure)
+            │
+            │   [Issues 10, 12 must complete before Issue 17]
+            │
+            ├── Issue 13 (Account Agent – local)    ─┐
+            ├── Issue 14 (Transaction Agent – local) ─┤──► Issue 17 (Provision AI Foundry + Deploy Agents → Azure)
+            ├── Issue 15 (Payment Agent – local)    ─┤
+            └── Issue 16 (Supervisor Agent – local) ─┘
+                                                        │
+                                                    Issue 18 (AI Chat API – local) ──► Issue 19 (Deploy Chat API → Azure)
+                                                                                            │
+                                                                            ┌───────────────┘
+                                                                            │
+                                                        Issue 20 (Simple Chat UI – local) ──► Issue 21 (Deploy Simple Chat → Azure)
+                                                        Issue 22 (Banking Web UI – local) ──► Issue 23 (Deploy Banking Web → Azure)
+                                                                            │
+                                                                    Issue 24 (Docker / docker-compose)
+                                                                            │
+                                                                    Issue 25 (CI/CD)
+                                                                            │
+                                                                    Issue 26 (Observability)
+                                                                            │
+                                                                    Issue 27 (E2E Tests)
 ```
 
 ---
@@ -401,19 +554,22 @@ Issue 1  (Scaffolding)
 
 | Label | Issues |
 |---|---|
-| `backend` | 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 |
-| `frontend` | 12, 13 |
-| `infra` | 14, 15, 16 |
-| `agents` | 7, 8, 9, 10 |
-| `mcp` | 5, 6 |
-| `testing` | 17, 18 |
-| `security` | 6, 17 |
+| `backend` | 3, 5, 7, 9, 11, 13, 14, 15, 16, 18 |
+| `frontend` | 20, 22 |
+| `infra` | 2, 4, 6, 8, 10, 12, 17, 19, 21, 23, 24, 25 |
+| `agents` | 13, 14, 15, 16, 17 |
+| `mcp` | 9, 10, 11, 12 |
+| `testing` | 26, 27 |
+| `security` | 11, 26 |
 
 ---
 
 ## Notes
 
-- **Testing-first philosophy**: every issue above ships with unit tests before the next dependent issue begins.
-- **No Azure required for issues 1–13**: mock services and mocked Azure SDK calls allow full local development and CI without a live Azure subscription.
-- **Issues can be parallelised**: issues 2, 3, 4, and 6 are independent and can be worked concurrently; issues 7, 8, 9 depend only on issue 5 and can also be parallelised.
+- **Incremental Azure provisioning**: every component-building issue is paired with an immediately following Azure provisioning/deployment/validation issue. Infrastructure grows alongside the application.
+- **Testing-first philosophy**: every application issue ships with unit tests before the next dependent issue begins.
+- **No Azure required for odd-numbered issues 3–22**: mock services and mocked Azure SDK calls allow full local development and CI without a live Azure subscription.
+- **Even-numbered issues 4–23 require Azure**: these are the paired provisioning/deployment issues and need an active Azure subscription with OIDC credentials configured in the `dev` GitHub Actions Environment.
+- **Issues can be parallelised**: issues 3, 5, 7 are independent and can be worked concurrently; their paired deployment issues (4, 6, 8) can also run in parallel once Issue 2 is complete; issues 13, 14, 15, 16 depend only on issue 10 and 12, and can be parallelised.
+- **Bicep modularity**: each new Azure resource gets its own Bicep module in `infra/modules/`. The `existing` keyword is used in child modules to reference shared resources provisioned in Issue 2.
 - **uv** is used for all Python dependency management; **pnpm** or **npm** for frontend packages.
