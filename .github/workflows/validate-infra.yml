@@ -44,4 +44,4 @@ jobs:
       - name: Run iac-validate.sh
         run: bash scripts/iac-validate.sh
         env:
-          AZURE_LOCATION: westus2
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'westus2' }}
