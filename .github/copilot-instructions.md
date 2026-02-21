@@ -140,6 +140,14 @@ This repository is a **Multi-agent Banking Assistant** built with Python and the
 - Commit large binary files or generated build artefacts to the repository.
 - Create ARM JSON templates; use Bicep instead.
 
+---
+
+## Incremental Delivery Pattern
+
+- **Atomic Features**: Every GitHub Issue representing a feature must include its own Infrastructure as Code (Bicep), Application Code, and CI/CD updates.
+- **The "Test-in-Cloud" Requirement**: A feature is not "Done" until it has been deployed to a development environment in Azure and verified.
+- **No "Infra-Last" Planning**: Do not group all Azure resources into a single deployment task. Provision resources as they are needed by the application components.
+
 # Copilot Coding Agent – IaC Validation Guardrails (azd + Bicep) – Environment: dev
 
 ## GitHub Actions Environment requirement
