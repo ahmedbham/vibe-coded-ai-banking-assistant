@@ -97,6 +97,9 @@ This repository is a **Multi-agent Banking Assistant** built with Python and the
 - Parameterise all environment-specific values.
 - Use modules to organise resources logically.
 - Tag every resource with at minimum `environment`, `project`, and `owner` tags.
+- **Bicep Modularity**: Always break infrastructure into reusable modules in the `/infra/modules` directory.
+- **Incremental Resource Discovery**: When adding a new resource that depends on an existing one, use the `existing` keyword in Bicep rather than redeclaring the full resource.
+- **Pre-flight Check**: For every infrastructure change, generate an Azure "What-If" command (`az deployment group what-if`) to validate the impact before applying.
 
 ---
 
