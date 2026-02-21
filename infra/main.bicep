@@ -87,7 +87,7 @@ module containerAppsEnv 'modules/container-apps-env.bicep' = {
 }
 
 // ---------------------------------------------------------------------------
-// Outputs
+// Outputs – human-readable
 // ---------------------------------------------------------------------------
 
 @description('Login server of the Azure Container Registry.')
@@ -104,3 +104,22 @@ output containerAppsEnvDomain string = containerAppsEnv.outputs.defaultDomain
 
 @description('Client ID of the user-assigned managed identity.')
 output managedIdentityClientId string = identity.outputs.clientId
+
+// ---------------------------------------------------------------------------
+// Outputs – azd conventions (uppercase = auto-mapped to azd environment vars)
+// ---------------------------------------------------------------------------
+
+@description('ACR login server for azd image push.')
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.outputs.loginServer
+
+@description('Container Apps managed environment name for azd service deployment.')
+output AZURE_CONTAINER_APPS_ENVIRONMENT_NAME string = containerAppsEnvName
+
+@description('Key Vault URI consumed by azd-deployed services.')
+output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.uri
+
+@description('Application Insights connection string for azd-deployed services.')
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitor.outputs.appInsightsConnectionString
+
+@description('Client ID of the managed identity for azd-deployed services.')
+output AZURE_CLIENT_ID string = identity.outputs.clientId
