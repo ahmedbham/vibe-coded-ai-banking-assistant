@@ -52,6 +52,28 @@ cd backend
 docker build -t banking-assistant-backend .
 ```
 
+## GitHub Actions – Authorizing Copilot Workflow Runs
+
+When GitHub Copilot coding agent opens a pull request or pushes to a `copilot/**` branch, GitHub Actions workflows must be authorized to run without requiring manual owner approval.  This repository uses a dedicated **`copilot`** GitHub Actions Environment (with no required reviewers) so that Copilot-triggered workflow runs proceed automatically.
+
+### One-time setup (repository owner)
+
+1. **Create the `copilot` environment**
+   - Navigate to **Settings → Environments → New environment**.
+   - Name it exactly **`copilot`**.
+   - Do **not** add any required reviewers or wait timers.
+   - Save the environment.
+
+2. **Allow Copilot workflow runs** *(if not already set)*
+   - Navigate to **Settings → Actions → General**.
+   - Under *"Fork pull request workflows from outside collaborators"* choose at minimum **"Approve first-time contributors"** (or less restrictive).
+   - Under *"Workflow permissions"* select **"Read and write permissions"** if workflows need to write back to the repository.
+   - Save.
+
+3. *(Optional)* Set the repository variable **`GH_ACTIONS_ENVIRONMENT`** to `copilot` under **Settings → Secrets and variables → Actions → Variables** to make all workflow jobs use this environment by default.
+
+Once the `copilot` environment exists without protection rules, every workflow job that references `environment: copilot` (or `environment: ${{ vars.GH_ACTIONS_ENVIRONMENT || 'copilot' }}`) will run automatically for Copilot-triggered events.
+
 ## Tech Stack
 
 - **Python 3.11+** · FastAPI · Uvicorn
