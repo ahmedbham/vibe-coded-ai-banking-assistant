@@ -24,6 +24,13 @@ set -Eeuo pipefail
 # -----------------------------
 log() { echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"; }
 
+on_error() {
+  local exit_code=$?
+  local line_no="${1:-unknown}"
+  log "ERROR: Script failed at line ${line_no} with exit code ${exit_code}. Review the error above and fix the relevant infra/ files."
+}
+trap 'on_error ${LINENO}' ERR
+
 retry() {
   # retry <max_attempts> <sleep_seconds> <command...>
   local -r max_attempts="$1"; shift
