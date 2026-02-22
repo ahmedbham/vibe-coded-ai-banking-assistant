@@ -24,3 +24,10 @@ services:
     docker:
       path: ./backend/Dockerfile
       context: ./backend
+  transactions-service:
+    project: ./backend
+    language: py
+    host: containerapp
+    docker:
+      path: ./backend/Dockerfile.transactions
+      context: ./backend
