@@ -10,6 +10,7 @@ jobs:
   bicep-validate:
     name: Bicep – build & validate
     runs-on: ubuntu-latest
+    environment: copilot
     permissions:
       contents: read
 
@@ -26,6 +27,7 @@ jobs:
   backend-ci:
     name: Backend – install & test
     runs-on: ubuntu-latest
+    environment: copilot
     permissions:
       contents: read
     defaults:

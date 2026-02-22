@@ -15,9 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     # Use a configured GitHub Actions Environment when available so Environment Secrets are accessible.
-    # Falls back to "dev" if REPO/ORG variable GH_ACTIONS_ENVIRONMENT is not set.
-    # (subject to any environment protection rules/approvals you configure). [6](https://dev.to/pwd9000/using-github-copilot-coding-agent-for-devops-automation-3f43)[3](https://bing.com/search?q=GitHub+Actions+hosted+runner+software+installed+list+ubuntu-latest+windows-latest+macos-latest)
-    environment: ${{ vars.GH_ACTIONS_ENVIRONMENT || 'dev' }}
+    # Falls back to "copilot" if REPO/ORG variable GH_ACTIONS_ENVIRONMENT is not set.
+    # The "copilot" environment should have no required reviewers so Copilot coding agent
+    # workflow runs are not blocked waiting for manual approval.
+    environment: ${{ vars.GH_ACTIONS_ENVIRONMENT || 'copilot' }}
 
     # Minimum permissions:
     # - contents:read => checkout
