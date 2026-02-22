@@ -70,11 +70,11 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 - Implement `infra/modules/container-registry.bicep`, `infra/modules/container-apps-env.bicep`, `infra/modules/key-vault.bicep`, `infra/modules/monitor.bicep`, `infra/modules/managed-identity.bicep`.
 - Implement `infra/main.bicep` composing all modules; parameterise `environment`, `location`, `project`, and `owner` tags on every resource.
 - Add `infra/parameters.dev.json` with dev-environment defaults.
-- Add `scripts/deploy-base-infra.sh` that runs `az deployment group create` and prints resource endpoints.
-- Validate templates with `az bicep build --file infra/main.bicep` in CI.
-- Run `az deployment group what-if` against a test subscription before applying.
+- Ensure `azure.yaml` references `infra/main.bicep` as the Bicep provider so `azd provision` picks up all modules.
+- Validate templates locally with `az bicep build --file infra/main.bicep`; pushing `infra/` changes to any `copilot/**` branch or opening a PR automatically triggers the `validate-infra.yml` workflow, which runs `scripts/iac-validate.sh` to compile, validate, and deploy into an ephemeral resource group using `azd provision`, then tears it down.
+- Provision the shared resources in the `dev` environment by merging to `main`, which triggers `azure-dev.yml` (`azd provision` step).
 
-**Testable outcome:** `az bicep build --file infra/main.bicep` succeeds; `scripts/deploy-base-infra.sh` provisions all resources in a test resource group without errors; ACR login succeeds from a local workstation.
+**Testable outcome:** `az bicep build --file infra/main.bicep` succeeds; the `validate-infra.yml` CI job is green (ephemeral `azd provision` + cleanup pass); `azd provision` creates all resources in the `dev` resource group; ACR login succeeds from a local workstation.
 
 ---
 
@@ -107,8 +107,8 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 - Finalise the multi-stage `backend/Dockerfile` to produce a minimal, non-root image for the Account Service.
 - Add `infra/modules/container-app-account-service.bicep` defining the Container App (image, port, environment variables, Managed Identity binding).
 - Extend `infra/main.bicep` to include the new module (using the `existing` keyword for shared resources).
-- Add `scripts/deploy-account-service.sh` that builds and pushes the image to ACR then runs `az deployment group create`.
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to a `copilot/**` branch or open a PR to trigger `validate-infra.yml` (`scripts/iac-validate.sh` runs `azd provision` in an ephemeral RG and tears it down).
+- Merge to `main` to trigger `azure-dev.yml` which runs `azd provision` (infrastructure) then `azd deploy` (builds and pushes the Docker image to ACR and updates the Container App revision).
 - Smoke-test the deployed endpoint: `curl https://<fqdn>/accounts/john_doe` returns the expected mock JSON.
 
 **Testable outcome:** Container App is running in Azure; `GET /accounts/john_doe` against the live URL returns mock account data; `az bicep build` succeeds on the updated `infra/main.bicep`.
@@ -142,8 +142,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 **Tasks:**
 - Add `infra/modules/container-app-transactions-service.bicep` defining the Container App.
 - Extend `infra/main.bicep` with the new module.
-- Add `scripts/deploy-transactions-service.sh` (build → push → deploy).
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy`).
 - Smoke-test: `GET /transactions/search?query=coffee` against the live URL returns mock results.
 
 **Testable outcome:** Transactions Service Container App is running in Azure; live smoke tests pass; `az bicep build` succeeds.
@@ -175,8 +174,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 **Tasks:**
 - Add `infra/modules/container-app-payments-service.bicep` defining the Container App.
 - Extend `infra/main.bicep` with the new module.
-- Add `scripts/deploy-payments-service.sh` (build → push → deploy).
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy`).
 - Smoke-test: `POST /payments` against the live URL returns a payment confirmation ID.
 
 **Testable outcome:** Payments Service Container App is running in Azure; live smoke tests pass; `az bicep build` succeeds.
@@ -207,8 +205,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 - Add `infra/modules/container-app-account-mcp.bicep`, `container-app-transactions-mcp.bicep`, `container-app-payments-mcp.bicep`.
 - Configure each MCP Container App with the environment variable pointing to the corresponding backend service URL (resolved from deployed Container App FQDNs).
 - Extend `infra/main.bicep` with the three new modules.
-- Add `scripts/deploy-mcp-servers.sh` (build → push → deploy all three).
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy` for all three MCP servers).
 - Smoke-test each MCP tool endpoint against the live URLs; confirm tool responses match mock data.
 
 **Testable outcome:** All three MCP Container Apps are running in Azure; tool-call smoke tests pass against live endpoints; `az bicep build` succeeds.
@@ -238,8 +235,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 - Add `infra/modules/document-intelligence.bicep` defining the Cognitive Services account (`kind: FormRecognizer`).
 - Add `infra/modules/container-app-document-mcp.bicep` with the `DOCUMENT_INTELLIGENCE_ENDPOINT` environment variable sourced from the Bicep output.
 - Extend `infra/main.bicep` with the two new modules; grant the Managed Identity `Cognitive Services User` role on the Document Intelligence resource.
-- Add `scripts/deploy-document-mcp.sh` (provision resource → build image → push → deploy Container App).
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy`).
 - Integration test: call `scanInvoice` against the live MCP endpoint with a sample invoice PDF; verify extracted fields.
 
 **Testable outcome:** Document Intelligence resource is provisioned; `scanInvoice` MCP tool returns real extracted data from a sample invoice against the live Azure endpoint; `az bicep build` succeeds.
@@ -323,8 +319,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 - Add `infra/modules/foundry-agent-service.bicep` referencing all four agent definitions.
 - Grant the Managed Identity `Cognitive Services OpenAI User` and `Azure AI Developer` roles.
 - Extend `infra/main.bicep` with all new modules.
-- Add `scripts/deploy-agents.sh` that provisions resources and registers agents on Foundry Agent Service.
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy` to register agents on Foundry Agent Service).
 - Integration test: send a "Show me my balance" prompt to the deployed Supervisor Agent; confirm it routes to the Account Agent and returns real mock-service data via the live MCP servers.
 
 **Testable outcome:** All four agents are registered on Foundry Agent Service; end-to-end routing test passes against Azure; `az bicep build` succeeds.
@@ -355,8 +350,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 **Tasks:**
 - Add `infra/modules/container-app-chat-api.bicep` with environment variables for all MCP server URLs, the Foundry Agent Service endpoint, and Application Insights connection string.
 - Extend `infra/main.bicep` with the new module.
-- Add `scripts/deploy-chat-api.sh` (build → push → deploy).
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy`).
 - Smoke-test: `curl -X POST https://<fqdn>/chat -d '{"message":"What is my balance?","session_id":"test"}'` returns a streamed response from the live Supervisor Agent.
 
 **Testable outcome:** AI Chat API Container App is running in Azure; streaming chat smoke test passes against the live URL; `az bicep build` succeeds.
@@ -389,8 +383,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 **Tasks:**
 - Add `infra/modules/container-app-simple-chat.bicep` with the `VITE_API_URL` build argument set to the deployed Chat API URL.
 - Extend `infra/main.bicep` with the new module.
-- Add `scripts/deploy-simple-chat.sh` (build → push → deploy).
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy`).
 - Smoke-test: open the deployed URL in a browser; send "What is my balance?" and verify a response appears.
 
 **Testable outcome:** Simple Chat Container App is accessible at its Azure URL; end-to-end browser smoke test passes; `az bicep build` succeeds.
@@ -423,8 +416,7 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 **Tasks:**
 - Add `infra/modules/container-app-banking-web.bicep` with the `VITE_API_URL` build argument and any other required environment variables.
 - Extend `infra/main.bicep` with the new module.
-- Add `scripts/deploy-banking-web.sh` (build → push → deploy).
-- Run `az deployment group what-if` before applying.
+- Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy`).
 - Smoke-test: open the deployed URL; verify the account summary, transaction table, and chat panel all render and respond correctly.
 
 **Testable outcome:** Banking Web Container App is accessible at its Azure URL; all dashboard views render with live data; `az bicep build` succeeds.
@@ -451,22 +443,21 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 **Goal:** Automate build, test, and deploy for every push and pull request.
 
-**Workflows to implement:**
+**Workflows (existing and to be completed):**
 
 | Workflow file | Trigger | Steps |
 |---|---|---|
 | `ci.yml` | PR / push to `main` | Lint (ruff), type-check (mypy / tsc), unit tests (pytest + Vitest), `az bicep build` |
-| `build-push.yml` | Push to `main` | Build & push all Docker images to ACR |
-| `deploy-infra.yml` | Manual / release tag | `az deployment group create` with Bicep templates (incremental, module by module) |
-| `deploy-apps.yml` | After `build-push.yml` | Update Container App revisions with new image tags |
+| `validate-infra.yml` | Push to `copilot/**` / `main` or PR touching `infra/`, `azure.yaml`, or `scripts/iac-validate.sh` | Runs `scripts/iac-validate.sh`: compiles Bicep, runs `azd provision` in an ephemeral RG, tears down on completion |
+| `azure-dev.yml` | Push to `main` or `workflow_dispatch` | `azd provision` (infrastructure) then `azd deploy` (build, push images to ACR, update Container App revisions) |
 
 **Tasks:**
-- Implement all four workflow files under `.github/workflows/`.
+- Ensure `ci.yml` covers lint (ruff), type-check (mypy / tsc), unit tests (pytest + Vitest), and `az bicep build`.
+- `validate-infra.yml` and `azure-dev.yml` already exist; verify they reference the correct secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) and the `dev` GitHub Actions Environment.
 - Use `azure/login` with Federated Identity (OIDC) — no long-lived secrets.
-- Cache `uv` and `npm` dependencies for faster builds.
-- Each deployment job in `deploy-infra.yml` targets only the modules changed in the current release, keeping deployments incremental.
+- Cache `uv` and `npm` dependencies in `ci.yml` for faster builds.
 
-**Testable outcome:** All four workflows run successfully on a push to `main`; a PR triggers `ci.yml` with green status checks.
+**Testable outcome:** All three workflows run successfully; a PR touching `infra/` triggers `validate-infra.yml` (green); a push to `main` triggers `azure-dev.yml` deploying the latest image; a PR triggers `ci.yml` with green status checks.
 
 ---
 
@@ -570,6 +561,8 @@ Issue 1  (Scaffolding)
 - **Testing-first philosophy**: every application issue ships with unit tests before the next dependent issue begins.
 - **No Azure required for odd-numbered issues 3–22**: mock services and mocked Azure SDK calls allow full local development and CI without a live Azure subscription.
 - **Even-numbered issues 4–23 require Azure**: these are the paired provisioning/deployment issues and need an active Azure subscription with OIDC credentials configured in the `dev` GitHub Actions Environment.
+- **IaC validation workflow**: any push to a `copilot/**` branch or a PR that touches `infra/`, `azure.yaml`, or `scripts/iac-validate.sh` automatically triggers `validate-infra.yml`, which runs `scripts/iac-validate.sh`. The script creates an ephemeral resource group, runs `azd provision` to validate the Bicep templates end-to-end, and then tears down all resources.
+- **Production provisioning and deployment**: merging to `main` triggers `azure-dev.yml`, which runs `azd provision` (infrastructure) followed by `azd deploy` (builds Docker images, pushes to ACR, and updates Container App revisions) — no manual `az deployment group create` or hand-crafted deploy scripts are needed.
 - **Issues can be parallelised**: issues 3, 5, 7 are independent and can be worked concurrently; their paired deployment issues (4, 6, 8) can also run in parallel once Issue 2 is complete; issues 13, 14, 15, 16 depend only on issue 10 and 12, and can be parallelised.
 - **Bicep modularity**: each new Azure resource gets its own Bicep module in `infra/modules/`. The `existing` keyword is used in child modules to reference shared resources provisioned in Issue 2.
 - **uv** is used for all Python dependency management; **pnpm** or **npm** for frontend packages.
