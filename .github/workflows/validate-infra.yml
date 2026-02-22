@@ -4,6 +4,16 @@ on:
   workflow_dispatch:
   push:
     branches: ["copilot/**", "main"]
+    paths:
+      - "infra/**"
+      - "azure.yaml"
+      - "scripts/iac-validate.sh"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "infra/**"
+      - "azure.yaml"
+      - "scripts/iac-validate.sh"
 
 permissions:
   id-token: write
@@ -42,6 +52,35 @@ jobs:
             --tenant-id "${{ secrets.AZURE_TENANT_ID }}"
 
       - name: Run iac-validate.sh
-        run: bash scripts/iac-validate.sh
+        id: iac_validate
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/iac-validate.sh 2>&1 | tee /tmp/iac-validate.log
         env:
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'westus2' }}
+
+      - name: Write failure summary
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "## ❌ IaC Validation Failed"
+            echo ""
+            echo "The following errors were detected in the infrastructure files."
+            echo "Review the output below, fix the relevant \`infra/\` files, and re-run the workflow."
+            echo ""
+            echo '```'
+            grep -E "(ERROR|WARN|error|Error|failed|Failed)" /tmp/iac-validate.log 2>/dev/null \
+              || tail -50 /tmp/iac-validate.log 2>/dev/null \
+              || echo "No log output captured."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iac-validate-log
+          path: /tmp/iac-validate.log
+          if-no-files-found: ignore
