@@ -16,11 +16,15 @@ param owner string = 'platform-team'
 // ---------------------------------------------------------------------------
 var suffix = '${project}-${environment}'
 
+// 6-char deterministic suffix unique to this resource group, ensuring
+// globally-unique names for Key Vault (max 24 chars) and ACR (max 50 chars).
+var uniqueSuffix = take(uniqueString(resourceGroup().id), 6)
+
 var identityName        = 'id-${suffix}'
 var workspaceName       = 'log-${suffix}'
 var appInsightsName     = 'appi-${suffix}'
-var registryName        = replace('acr${suffix}', '-', '')
-var keyVaultName        = 'kv-${suffix}'
+var registryName        = replace('acr${suffix}${uniqueSuffix}', '-', '')
+var keyVaultName        = 'kv-${suffix}-${uniqueSuffix}'
 var containerAppsEnvName = 'cae-${suffix}'
 
 // ---------------------------------------------------------------------------
