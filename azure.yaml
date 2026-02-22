@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: vibe-coded-ai-banking-assistant
+
+metadata:
+  template: vibe-coded-ai-banking-assistant@0.0.1
+
+# ---------------------------------------------------------------------------
+# Infrastructure – Bicep templates in infra/
+# ---------------------------------------------------------------------------
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+# ---------------------------------------------------------------------------
+# Application services
+# ---------------------------------------------------------------------------
+services:
+  backend:
+    project: ./backend
+    language: py
+    host: containerapp
+    docker:
+      path: ./backend/Dockerfile
+      context: ./backend
