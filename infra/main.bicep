@@ -20,12 +20,13 @@ var suffix = '${project}-${environment}'
 // globally-unique names for Key Vault (max 24 chars) and ACR (max 50 chars).
 var uniqueSuffix = take(uniqueString(resourceGroup().id), 6)
 
-var identityName        = 'id-${suffix}'
-var workspaceName       = 'log-${suffix}'
-var appInsightsName     = 'appi-${suffix}'
-var registryName        = replace('acr${suffix}${uniqueSuffix}', '-', '')
-var keyVaultName        = 'kv-${suffix}-${uniqueSuffix}'
+var identityName         = 'id-${suffix}'
+var workspaceName        = 'log-${suffix}'
+var appInsightsName      = 'appi-${suffix}'
+var registryName         = replace('acr${suffix}${uniqueSuffix}', '-', '')
+var keyVaultName         = 'kv-${suffix}-${uniqueSuffix}'
 var containerAppsEnvName = 'cae-${suffix}'
+var accountServiceAppName = 'ca-account-${suffix}'
 
 // ---------------------------------------------------------------------------
 // Modules
@@ -90,6 +91,22 @@ module containerAppsEnv 'modules/container-apps-env.bicep' = {
   }
 }
 
+module accountServiceApp 'modules/container-app-account-service.bicep' = {
+  name: 'deploy-account-service'
+  params: {
+    location: location
+    containerAppName: accountServiceAppName
+    containerAppsEnvId: containerAppsEnv.outputs.id
+    acrLoginServer: containerRegistry.outputs.loginServer
+    managedIdentityId: identity.outputs.id
+    managedIdentityClientId: identity.outputs.clientId
+    appInsightsConnectionString: monitor.outputs.appInsightsConnectionString
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs – human-readable
 // ---------------------------------------------------------------------------
@@ -127,3 +144,6 @@ output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitor.outputs.appInsight
 
 @description('Client ID of the managed identity for azd-deployed services.')
 output AZURE_CLIENT_ID string = identity.outputs.clientId
+
+@description('FQDN of the Account Service Container App.')
+output accountServiceFqdn string = accountServiceApp.outputs.fqdn
