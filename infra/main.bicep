@@ -27,6 +27,7 @@ var registryName         = replace('acr${suffix}${uniqueSuffix}', '-', '')
 var keyVaultName         = 'kv-${suffix}-${uniqueSuffix}'
 var containerAppsEnvName = 'cae-${suffix}'
 var accountServiceAppName = 'ca-account-${suffix}'
+var transactionsServiceAppName = 'ca-transactions-${suffix}'
 
 // ---------------------------------------------------------------------------
 // Modules
@@ -107,6 +108,22 @@ module accountServiceApp 'modules/container-app-account-service.bicep' = {
   }
 }
 
+module transactionsServiceApp 'modules/container-app-transactions-service.bicep' = {
+  name: 'deploy-transactions-service'
+  params: {
+    location: location
+    containerAppName: transactionsServiceAppName
+    containerAppsEnvId: containerAppsEnv.outputs.id
+    acrLoginServer: containerRegistry.outputs.loginServer
+    managedIdentityId: identity.outputs.id
+    managedIdentityClientId: identity.outputs.clientId
+    appInsightsConnectionString: monitor.outputs.appInsightsConnectionString
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs – human-readable
 // ---------------------------------------------------------------------------
@@ -147,3 +164,6 @@ output AZURE_CLIENT_ID string = identity.outputs.clientId
 
 @description('FQDN of the Account Service Container App.')
 output accountServiceFqdn string = accountServiceApp.outputs.fqdn
+
+@description('FQDN of the Transactions Service Container App.')
+output transactionsServiceFqdn string = transactionsServiceApp.outputs.fqdn
