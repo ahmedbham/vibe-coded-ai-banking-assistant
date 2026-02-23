@@ -54,9 +54,53 @@ docker build -t banking-assistant-backend .
 
 ## GitHub Actions – Authorizing Copilot Workflow Runs
 
-When GitHub Copilot coding agent opens a pull request or pushes to a `copilot/**` branch, GitHub Actions workflows must be authorized to run without requiring manual owner approval.  This repository uses a dedicated **`copilot`** GitHub Actions Environment (with no required reviewers) so that Copilot-triggered workflow runs proceed automatically.
+When the GitHub Copilot coding agent opens a pull request or pushes to a `copilot/**` branch, GitHub treats it as an outside-collaborator/bot actor and holds every triggered workflow run behind an **"Approve and run"** gate until a maintainer clicks the button.
 
-### One-time setup (repository owner)
+This repository addresses the problem at two levels:
+
+| Layer | Mechanism | What it solves |
+|-------|-----------|----------------|
+| **Workflow run gate** | `auto-approve-copilot.yml` workflow | Approves the pending run automatically so all jobs can start |
+| **Environment deployment gate** | `copilot` environment (no required reviewers) | Allows individual jobs that reference `environment: copilot` to proceed without a second human approval |
+
+### Approach 1 – Auto-approve workflow (recommended, in-repo solution)
+
+The file `.github/workflows/auto-approve-copilot.yml` is already committed.  It runs **from the default branch** (trusted context) and uses two triggers:
+
+1. **`workflow_run / requested`** — fires immediately when one of the named CI workflows is requested; approves the run if the actor is `Copilot` or `copilot[bot]`.
+2. **`schedule` (every 30 min)** — fallback poll that finds any remaining `action_required` runs from Copilot and approves them.
+
+#### One-time secret setup (repository owner)
+
+Create a fine-grained or classic Personal Access Token and store it as a repository secret:
+
+1. Go to **GitHub → Settings (personal) → Developer settings → Personal access tokens**.
+2. Create a token with at minimum:
+   - **Actions: Read and write** (fine-grained), or
+   - **`repo` + `workflow`** scopes (classic token).
+3. Navigate to the repository **Settings → Secrets and variables → Actions → Secrets**.
+4. Create a new repository secret named **`COPILOT_AUTO_APPROVE_TOKEN`** and paste the token.
+
+> Without this secret the workflow falls back to `GITHUB_TOKEN`, which may not have sufficient permissions to approve runs from bot actors.  Setting the secret is strongly recommended.
+
+---
+
+### Approach 2 – `COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN` (MCP-based)
+
+If the Copilot coding agent is configured with the GitHub MCP server, you can give it a PAT so it can trigger `workflow_dispatch` jobs **as you** (the token owner).  Workflows triggered this way are logged under your identity and bypass the "Approve and run" gate entirely.
+
+1. Create a PAT with `actions:write` (and `repo` for private repos).
+2. Store it as a repository secret named **`COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN`**.
+
+Copilot will automatically pick up this secret when it runs MCP tools, and can trigger `workflow_dispatch` workflows without requiring approval.
+
+> **Note:** This only covers workflows triggered via `workflow_dispatch`; push- and pull_request-triggered runs still use Approach 1.
+
+---
+
+### Approach 3 – `copilot` GitHub Actions Environment (environment gate)
+
+This solves the *environment deployment gate* (different from the initial workflow run gate):
 
 1. **Create the `copilot` environment**
    - Navigate to **Settings → Environments → New environment**.
@@ -64,7 +108,7 @@ When GitHub Copilot coding agent opens a pull request or pushes to a `copilot/**
    - Do **not** add any required reviewers or wait timers.
    - Save the environment.
 
-2. **Allow Copilot workflow runs** *(if not already set)*
+2. **Allow Copilot workflow runs** *(repository-level setting)*
    - Navigate to **Settings → Actions → General**.
    - Under *"Fork pull request workflows from outside collaborators"* choose at minimum **"Approve first-time contributors"** (or less restrictive).
    - Under *"Workflow permissions"* select **"Read and write permissions"** if workflows need to write back to the repository.
@@ -72,7 +116,18 @@ When GitHub Copilot coding agent opens a pull request or pushes to a `copilot/**
 
 3. *(Optional)* Set the repository variable **`GH_ACTIONS_ENVIRONMENT`** to `copilot` under **Settings → Secrets and variables → Actions → Variables** to make all workflow jobs use this environment by default.
 
-Once the `copilot` environment exists without protection rules, every workflow job that references `environment: copilot` (or `environment: ${{ vars.GH_ACTIONS_ENVIRONMENT || 'copilot' }}`) will run automatically for Copilot-triggered events.
+All three workflows (`ci.yml`, `validate-infra.yml`, `copilot-setup-steps.yml`) already reference `environment: copilot` (or the variable fallback), so once the environment exists without protection rules the jobs proceed automatically.
+
+---
+
+### Summary of required one-time owner actions
+
+| Action | Required for |
+|--------|-------------|
+| Create `COPILOT_AUTO_APPROVE_TOKEN` secret (PAT with `actions:write`) | Approach 1 — auto-approve workflow run gate |
+| Create `copilot` environment with no required reviewers | Approach 3 — environment deployment gate |
+| Set Actions → General → "Fork PR workflows" to "Approve first-time contributors" | All approaches — reduces initial approval prompts |
+| *(Optional)* Create `COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN` secret | Approach 2 — MCP-dispatched workflows |
 
 ## Tech Stack
 

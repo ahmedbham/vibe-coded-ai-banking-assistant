@@ -1,0 +1,121 @@
+name: Auto-Approve Copilot Workflow Runs
+
+# This workflow auto-approves GitHub Actions workflow runs triggered by the
+# GitHub Copilot coding agent.  It addresses the requirement that maintainers
+# must manually click "Approve and run" for every Copilot-triggered event.
+#
+# Two complementary triggers are used:
+#   1. workflow_run / requested — fires (from the default branch, where it is
+#      trusted) when any of the named workflows is requested.  Immediately
+#      approves the run if the triggering actor is Copilot.
+#   2. schedule — polls every 30 minutes for any workflow runs that are still
+#      in "action_required" state (the fallback for cases where the
+#      workflow_run event fires too late or not at all).
+#
+# Prerequisites (one-time owner action):
+#   • Create a fine-grained PAT with "Actions: Read and write" permission
+#     (or a classic PAT with "repo" + "workflow" scopes) for this repository.
+#   • Store it as a repository secret named COPILOT_AUTO_APPROVE_TOKEN.
+#   • If the secret is absent the workflow falls back to GITHUB_TOKEN, which
+#     may be sufficient depending on repository settings.
+#
+# Security note:
+#   • This workflow file lives on the default branch and runs in that trusted
+#     context — it never runs untrusted code from the Copilot PR branch.
+#   • Only runs whose actor login is "Copilot" or "copilot[bot]" are approved.
+
+on:
+  workflow_run:
+    workflows:
+      - "CI"
+      - "Validate IaC (scripts/iac-validate.sh)"
+      - "Copilot Setup Steps"
+    types:
+      - requested
+  schedule:
+    # Fallback poll: check every 30 minutes for stalled action_required runs.
+    - cron: "*/30 * * * *"
+
+permissions:
+  actions: write
+
+# Actor logins for the GitHub Copilot coding agent.
+# Listed here once so both jobs stay in sync if GitHub ever changes the name.
+env:
+  COPILOT_LOGINS: "Copilot copilot[bot]"
+
+jobs:
+  # ── Job 1: event-driven approval ──────────────────────────────────────────
+  auto-approve-event:
+    name: Auto-approve on workflow_run event
+    runs-on: ubuntu-latest
+    # Only run when a workflow_run event is received AND the actor is Copilot.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      (github.event.workflow_run.actor.login == 'Copilot' ||
+       github.event.workflow_run.actor.login == 'copilot[bot]')
+    steps:
+      - name: Approve workflow run
+        uses: actions/github-script@v7
+        with:
+          # Prefer a dedicated PAT (actions:write) so approval succeeds even
+          # when GITHUB_TOKEN lacks sufficient permissions.
+          github-token: ${{ secrets.COPILOT_AUTO_APPROVE_TOKEN || github.token }}
+          script: |
+            const runId = context.payload.workflow_run.id;
+            const actor = context.payload.workflow_run.actor?.login;
+            core.info(`Attempting to approve run #${runId} triggered by ${actor}`);
+            try {
+              await github.rest.actions.approveWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId,
+              });
+              core.info(`✅ Approved workflow run #${runId}`);
+            } catch (err) {
+              // Log a warning rather than failing — the run may already be
+              // approved, queued, or ineligible (e.g. same-repo push).
+              core.warning(`Could not approve run #${runId}: ${err.message}`);
+            }
+
+  # ── Job 2: scheduled fallback ─────────────────────────────────────────────
+  auto-approve-scheduled:
+    name: Approve pending Copilot runs (scheduled poll)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Find and approve action_required Copilot runs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.COPILOT_AUTO_APPROVE_TOKEN || github.token }}
+          script: |
+            const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              status: 'action_required',
+              per_page: 50,
+            });
+
+            const copilotLogins = new Set(process.env.COPILOT_LOGINS.split(' '));
+            const pending = data.workflow_runs.filter(
+              r => copilotLogins.has(r.actor?.login)
+            );
+
+            if (pending.length === 0) {
+              core.info('No pending Copilot runs found.');
+              return;
+            }
+
+            for (const run of pending) {
+              core.info(`Approving run #${run.id}: "${run.name}" by ${run.actor?.login}`);
+              try {
+                await github.rest.actions.approveWorkflowRun({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  run_id: run.id,
+                });
+                core.info(`✅ Approved run #${run.id}`);
+              } catch (err) {
+                core.warning(`Could not approve run #${run.id}: ${err.message}`);
+              }
+            }
