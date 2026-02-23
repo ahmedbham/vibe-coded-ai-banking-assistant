@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from services.transactions_service import app, _TRANSACTIONS
+from services.transactions_service import _TRANSACTIONS, app
 
 
 @pytest.fixture
@@ -25,7 +25,10 @@ async def test_search_transactions_with_query(client: AsyncClient) -> None:
     assert isinstance(data, list)
     assert len(data) > 0
     for txn in data:
-        assert "coffee" in txn["description"].lower() or "coffee" in txn["category"].lower()
+        assert (
+            "coffee" in txn["description"].lower()
+            or "coffee" in txn["category"].lower()
+        )
 
 
 async def test_search_transactions_no_results(client: AsyncClient) -> None:
