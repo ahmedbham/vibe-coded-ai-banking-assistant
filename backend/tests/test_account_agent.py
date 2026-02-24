@@ -252,10 +252,16 @@ def account_mcp_base_url(monkeypatch_class: Any) -> str:
     t = threading.Thread(target=server.run, daemon=True)
     t.start()
 
-    # Allow the server time to bind and start the lifespan
+    # Wait until the server is accepting connections (up to 5 s)
     import time
 
-    time.sleep(0.5)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                break
+        except OSError:
+            time.sleep(0.05)
 
     yield f"http://127.0.0.1:{port}"  # type: ignore[misc]
 
