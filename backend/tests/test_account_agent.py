@@ -228,7 +228,7 @@ class TestAccountAgentChat:
 
 
 @pytest.fixture(scope="class")
-def account_mcp_base_url(monkeypatch_class: pytest.MonkeyPatch) -> str:  # type: ignore[name-defined]
+def account_mcp_base_url(monkeypatch_class: Any) -> str:
     """Start the account MCP server on a free port and return its base URL.
 
     Patches ``account_mcp._get_client`` so the MCP tools hit the in-process
