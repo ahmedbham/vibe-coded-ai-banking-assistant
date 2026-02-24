@@ -28,6 +28,7 @@ var keyVaultName         = 'kv-${suffix}-${uniqueSuffix}'
 var containerAppsEnvName = 'cae-${suffix}'
 var accountServiceAppName = 'ca-account-${suffix}'
 var transactionsServiceAppName = 'ca-transactions-${suffix}'
+var paymentsServiceAppName = 'ca-payments-${suffix}'
 
 // ---------------------------------------------------------------------------
 // Modules
@@ -124,6 +125,22 @@ module transactionsServiceApp 'modules/container-app-transactions-service.bicep'
   }
 }
 
+module paymentsServiceApp 'modules/container-app-payments-service.bicep' = {
+  name: 'deploy-payments-service'
+  params: {
+    location: location
+    containerAppName: paymentsServiceAppName
+    containerAppsEnvId: containerAppsEnv.outputs.id
+    acrLoginServer: containerRegistry.outputs.loginServer
+    managedIdentityId: identity.outputs.id
+    managedIdentityClientId: identity.outputs.clientId
+    appInsightsConnectionString: monitor.outputs.appInsightsConnectionString
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs – human-readable
 // ---------------------------------------------------------------------------
@@ -167,3 +184,6 @@ output accountServiceFqdn string = accountServiceApp.outputs.fqdn
 
 @description('FQDN of the Transactions Service Container App.')
 output transactionsServiceFqdn string = transactionsServiceApp.outputs.fqdn
+
+@description('FQDN of the Payments Service Container App.')
+output paymentsServiceFqdn string = paymentsServiceApp.outputs.fqdn

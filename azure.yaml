@@ -31,3 +31,10 @@ services:
     docker:
       path: ./backend/Dockerfile.transactions
       context: ./backend
+  payments-service:
+    project: ./backend
+    language: py
+    host: containerapp
+    docker:
+      path: ./backend/Dockerfile.payments
+      context: ./backend
