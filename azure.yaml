@@ -38,3 +38,24 @@ services:
     docker:
       path: ./backend/Dockerfile.payments
       context: ./backend
+  account-mcp:
+    project: ./backend
+    language: py
+    host: containerapp
+    docker:
+      path: ./backend/Dockerfile.account-mcp
+      context: ./backend
+  transactions-mcp:
+    project: ./backend
+    language: py
+    host: containerapp
+    docker:
+      path: ./backend/Dockerfile.transactions-mcp
+      context: ./backend
+  payments-mcp:
+    project: ./backend
+    language: py
+    host: containerapp
+    docker:
+      path: ./backend/Dockerfile.payments-mcp
+      context: ./backend
