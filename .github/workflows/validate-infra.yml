@@ -3,7 +3,7 @@ name: Validate IaC (scripts/iac-validate.sh)
 on:
   workflow_dispatch:
   push:
-    branches: ["copilot/**", "main"]
+    branches: ["main"]
     paths:
       - "infra/**"
       - "azure.yaml"
