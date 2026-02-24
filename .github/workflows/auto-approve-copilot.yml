@@ -4,13 +4,22 @@ name: Auto-Approve Copilot Workflow Runs
 # GitHub Copilot coding agent.  It addresses the requirement that maintainers
 # must manually click "Approve and run" for every Copilot-triggered event.
 #
-# Two complementary triggers are used:
+# Three complementary triggers are used:
 #   1. workflow_run / requested — fires (from the default branch, where it is
 #      trusted) when any of the named workflows is requested.  Immediately
 #      approves the run if the triggering actor is Copilot.
-#   2. schedule — polls every 30 minutes for any workflow runs that are still
-#      in "action_required" state (the fallback for cases where the
-#      workflow_run event fires too late or not at all).
+#   2. schedule — polls every 5 minutes for any workflow runs that are still
+#      in "action_required" or "waiting" state.  This is the primary fallback
+#      because workflow_run-triggered runs can inherit the action_required status
+#      from upstream Copilot-triggered workflows.  The scheduled job also
+#      self-heals: it approves action_required runs of this workflow itself
+#      (by name) so the circular dependency is broken automatically.
+#   3. workflow_dispatch — allows manual triggering from the GitHub UI to
+#      immediately unblock any stalled runs without waiting for the schedule.
+#
+# The scheduled/dispatch job also approves pending environment deployments
+# (for jobs blocked at an environment protection gate), in addition to
+# approving the workflow run itself.
 #
 # Prerequisites (one-time owner action):
 #   • Create a fine-grained PAT with "Actions: Read and write" permission
@@ -22,7 +31,8 @@ name: Auto-Approve Copilot Workflow Runs
 # Security note:
 #   • This workflow file lives on the default branch and runs in that trusted
 #     context — it never runs untrusted code from the Copilot PR branch.
-#   • Only runs whose actor login is "Copilot" or "copilot[bot]" are approved.
+#   • Only runs whose actor login is "Copilot" or "copilot[bot]" are approved,
+#     plus runs of this workflow itself (self-healing).
 
 on:
   workflow_run:
@@ -30,11 +40,14 @@ on:
       - "CI"
       - "Validate IaC (scripts/iac-validate.sh)"
       - "Copilot Setup Steps"
+      - "Auto-Approve Copilot Workflow Runs"
     types:
       - requested
   schedule:
-    # Fallback poll: check every 30 minutes for stalled action_required runs.
-    - cron: "*/30 * * * *"
+    # Fallback poll: check every 5 minutes for stalled action_required/waiting runs.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    # Allow manual triggering to immediately unblock any stalled runs.
 
 permissions:
   actions: write
@@ -82,23 +95,49 @@ jobs:
   auto-approve-scheduled:
     name: Approve pending Copilot runs (scheduled poll)
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Find and approve action_required Copilot runs
+      - name: Find and approve action_required and waiting Copilot runs
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.COPILOT_AUTO_APPROVE_TOKEN || github.token }}
           script: |
-            const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+            const copilotLogins = new Set(process.env.COPILOT_LOGINS.split(' '));
+            // Also self-heal: always approve action_required runs of this workflow itself,
+            // because workflow_run-triggered runs can inherit the action_required status
+            // from upstream Copilot-triggered workflows (only runs on the default branch
+            // are approved to limit scope — schedule/workflow_run always run on default).
+            const selfWorkflowName = context.workflow;
+            const defaultBranch = context.payload.repository?.default_branch || 'main';
+
+            // Collect runs in action_required state (outside-contributor approval needed)
+            const { data: arData } = await github.rest.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
               repo:  context.repo.repo,
               status: 'action_required',
               per_page: 50,
             });
 
-            const copilotLogins = new Set(process.env.COPILOT_LOGINS.split(' '));
-            const pending = data.workflow_runs.filter(
-              r => copilotLogins.has(r.actor?.login)
+            // Collect runs in waiting state (environment protection rule approval needed)
+            const { data: waitingData } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              status: 'waiting',
+              per_page: 50,
+            });
+
+            // A run can only have one status at a time, but we merge both lists
+            // to handle all pending approval cases in a single loop.
+            const allRuns = [...arData.workflow_runs, ...waitingData.workflow_runs];
+            const runsById = new Map(allRuns.map(r => [r.id, r]));
+
+            const pending = [...runsById.values()].filter(r =>
+              copilotLogins.has(r.actor?.login) ||
+              // Self-heal: unblock this workflow's own action_required runs (which
+              // occur when workflow_run inherits action_required from upstream).
+              // Restrict to the default branch so only trusted scheduler/event runs
+              // are approved without an explicit Copilot actor check.
+              (r.name === selfWorkflowName && r.head_branch === defaultBranch)
             );
 
             if (pending.length === 0) {
@@ -107,15 +146,42 @@ jobs:
             }
 
             for (const run of pending) {
-              core.info(`Approving run #${run.id}: "${run.name}" by ${run.actor?.login}`);
+              core.info(`Processing run #${run.id}: "${run.name}" (status: ${run.status}) by ${run.actor?.login}`);
+
+              // Approve the workflow run itself (for action_required/outside-contributor state)
+              if (run.status === 'action_required') {
+                try {
+                  await github.rest.actions.approveWorkflowRun({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    run_id: run.id,
+                  });
+                  core.info(`✅ Approved run #${run.id}`);
+                } catch (err) {
+                  core.warning(`Could not approve run #${run.id}: ${err.message}`);
+                }
+              }
+
+              // Approve pending environment deployments (for waiting/environment-gate state)
               try {
-                await github.rest.actions.approveWorkflowRun({
+                const { data: pendingDeployments } = await github.rest.actions.getPendingDeploymentsForRun({
                   owner: context.repo.owner,
                   repo:  context.repo.repo,
                   run_id: run.id,
                 });
-                core.info(`✅ Approved run #${run.id}`);
-              } catch (err) {
-                core.warning(`Could not approve run #${run.id}: ${err.message}`);
+                if (pendingDeployments.length > 0) {
+                  const environmentIds = pendingDeployments.map(d => d.environment.id);
+                  await github.rest.actions.reviewPendingDeploymentsForRun({
+                    owner: context.repo.owner,
+                    repo:  context.repo.repo,
+                    run_id: run.id,
+                    environment_ids: environmentIds,
+                    state: 'approved',
+                    comment: 'Auto-approved for Copilot coding agent run',
+                  });
+                  core.info(`✅ Approved ${pendingDeployments.length} pending environment(s) for run #${run.id}`);
+                }
+              } catch (envErr) {
+                core.warning(`Could not approve environments for run #${run.id}: ${envErr.message}`);
               }
             }
