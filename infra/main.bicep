@@ -29,6 +29,9 @@ var containerAppsEnvName = 'cae-${suffix}'
 var accountServiceAppName = 'ca-account-${suffix}'
 var transactionsServiceAppName = 'ca-transactions-${suffix}'
 var paymentsServiceAppName = 'ca-payments-${suffix}'
+var accountMcpAppName = 'ca-account-mcp-${suffix}'
+var transactionsMcpAppName = 'ca-transactions-mcp-${suffix}'
+var paymentsMcpAppName = 'ca-payments-mcp-${suffix}'
 
 // ---------------------------------------------------------------------------
 // Modules
@@ -141,6 +144,57 @@ module paymentsServiceApp 'modules/container-app-payments-service.bicep' = {
   }
 }
 
+module accountMcpApp 'modules/container-app-account-mcp.bicep' = {
+  name: 'deploy-account-mcp'
+  params: {
+    location: location
+    containerAppName: accountMcpAppName
+    containerAppsEnvId: containerAppsEnv.outputs.id
+    acrLoginServer: containerRegistry.outputs.loginServer
+    managedIdentityId: identity.outputs.id
+    managedIdentityClientId: identity.outputs.clientId
+    appInsightsConnectionString: monitor.outputs.appInsightsConnectionString
+    accountServiceUrl: 'https://${accountServiceApp.outputs.fqdn}'
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
+module transactionsMcpApp 'modules/container-app-transactions-mcp.bicep' = {
+  name: 'deploy-transactions-mcp'
+  params: {
+    location: location
+    containerAppName: transactionsMcpAppName
+    containerAppsEnvId: containerAppsEnv.outputs.id
+    acrLoginServer: containerRegistry.outputs.loginServer
+    managedIdentityId: identity.outputs.id
+    managedIdentityClientId: identity.outputs.clientId
+    appInsightsConnectionString: monitor.outputs.appInsightsConnectionString
+    transactionsServiceUrl: 'https://${transactionsServiceApp.outputs.fqdn}'
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
+module paymentsMcpApp 'modules/container-app-payments-mcp.bicep' = {
+  name: 'deploy-payments-mcp'
+  params: {
+    location: location
+    containerAppName: paymentsMcpAppName
+    containerAppsEnvId: containerAppsEnv.outputs.id
+    acrLoginServer: containerRegistry.outputs.loginServer
+    managedIdentityId: identity.outputs.id
+    managedIdentityClientId: identity.outputs.clientId
+    appInsightsConnectionString: monitor.outputs.appInsightsConnectionString
+    paymentsServiceUrl: 'https://${paymentsServiceApp.outputs.fqdn}'
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs – human-readable
 // ---------------------------------------------------------------------------
@@ -187,3 +241,12 @@ output transactionsServiceFqdn string = transactionsServiceApp.outputs.fqdn
 
 @description('FQDN of the Payments Service Container App.')
 output paymentsServiceFqdn string = paymentsServiceApp.outputs.fqdn
+
+@description('FQDN of the Account MCP Container App.')
+output accountMcpFqdn string = accountMcpApp.outputs.fqdn
+
+@description('FQDN of the Transactions MCP Container App.')
+output transactionsMcpFqdn string = transactionsMcpApp.outputs.fqdn
+
+@description('FQDN of the Payments MCP Container App.')
+output paymentsMcpFqdn string = paymentsMcpApp.outputs.fqdn
