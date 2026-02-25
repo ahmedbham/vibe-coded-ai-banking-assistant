@@ -32,6 +32,11 @@ var paymentsServiceAppName = 'ca-payments-${suffix}'
 var accountMcpAppName = 'ca-account-mcp-${suffix}'
 var transactionsMcpAppName = 'ca-transactions-mcp-${suffix}'
 var paymentsMcpAppName = 'ca-payments-mcp-${suffix}'
+var foundryHubName = 'hub-${suffix}'
+var foundryProjectName = 'proj-${suffix}'
+var aiServicesName = 'ais-${suffix}-${uniqueSuffix}'
+var foundryStorageName = take(replace('stai${suffix}${uniqueSuffix}', '-', ''), 24)
+var openAiDeploymentName = 'gpt-4-1'
 
 // ---------------------------------------------------------------------------
 // Modules
@@ -195,6 +200,31 @@ module paymentsMcpApp 'modules/container-app-payments-mcp.bicep' = {
   }
 }
 
+module aiFoundry 'modules/ai-foundry.bicep' = {
+  name: 'deploy-ai-foundry'
+  params: {
+    location: location
+    foundryHubName: foundryHubName
+    foundryProjectName: foundryProjectName
+    aiServicesName: aiServicesName
+    storageAccountName: foundryStorageName
+    keyVaultId: keyVault.outputs.id
+    appInsightsId: monitor.outputs.appInsightsId
+    identityPrincipalId: identity.outputs.principalId
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
+module openai 'modules/openai.bicep' = {
+  name: 'deploy-openai'
+  params: {
+    aiServicesAccountName: aiFoundry.outputs.aiServicesName
+    deploymentName: openAiDeploymentName
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs – human-readable
 // ---------------------------------------------------------------------------
@@ -250,3 +280,12 @@ output transactionsMcpFqdn string = transactionsMcpApp.outputs.fqdn
 
 @description('FQDN of the Payments MCP Container App.')
 output paymentsMcpFqdn string = paymentsMcpApp.outputs.fqdn
+
+@description('Endpoint URL of the Azure AI Services account (Azure OpenAI compatible).')
+output aiServicesEndpoint string = aiFoundry.outputs.aiServicesEndpoint
+
+@description('Discovery URL of the Microsoft Foundry Project (used by MAF agents).')
+output foundryProjectEndpoint string = aiFoundry.outputs.foundryProjectEndpoint
+
+@description('Name of the GPT-4.1 model deployment.')
+output openAiDeploymentName string = openai.outputs.deploymentName
