@@ -50,9 +50,6 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 @description('Resource ID of the Log Analytics workspace.')
 output workspaceId string = logAnalyticsWorkspace.id
 
-@description('Resource ID of the Application Insights instance.')
-output appInsightsId string = appInsights.id
-
 @description('Instrumentation key of the Application Insights instance.')
 output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
 
