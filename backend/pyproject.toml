@@ -9,9 +9,18 @@ dependencies = [
     "azure-identity>=1.17.0",
     "azure-storage-blob>=12.22.0",
     "azure-ai-documentintelligence>=1.0.0",
-    "opentelemetry-sdk>=1.25.0",
+    # opentelemetry – pin to versions compatible with agent-framework-core
+    "opentelemetry-sdk==1.39.0",
+    "opentelemetry-api==1.39.0",
+    "opentelemetry-semantic-conventions==0.60b0",
+    "opentelemetry-semantic-conventions-ai==0.4.13",
     "azure-monitor-opentelemetry>=1.6.0",
     "fastmcp>=2.0.0",
+    # Microsoft Agent Framework (pinned while in preview to avoid breaking changes)
+    "agent-framework-azure-ai==1.0.0b260107",
+    "agent-framework-core==1.0.0b260107",
+    # azure-ai-projects version compatible with agent-framework-azure-ai
+    "azure-ai-projects==2.0.0b1",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +41,9 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: integration tests that require live services or full stack",
+]
 
 [build-system]
 requires = ["hatchling"]
