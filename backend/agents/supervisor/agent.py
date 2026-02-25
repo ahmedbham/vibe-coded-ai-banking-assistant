@@ -1,76 +1,124 @@
-"""Supervisor Agent – classifies user intent and routes to specialist agents.
+"""Supervisor Agent – triage and hand-off orchestration via MAF HandoffBuilder.
 
-Uses the Microsoft Agent Framework (MAF) for intent classification and
-hand-off to the correct specialist agent.
+Uses the Microsoft Agent Framework (MAF) Handoff Orchestration with Autonomous
+Mode to route user messages to the correct specialist agent without requiring
+human-in-the-loop interaction.
 
-Intent routing
---------------
-  AccountInfo        → Account Agent
-  Transactions       → Transaction Agent
-  PayInvoice         → Payment Agent
-  RepeatPayment      → Payment Agent
+Intent routing (via triage agent's system prompt)
+--------------------------------------------------
+  Account / balance / payment-method queries  → Account Agent
+  Transaction history / search queries         → Transaction Agent
+  Pay-invoice / repeat-payment requests        → Payment Agent
+
+Architecture
+------------
+The supervisor is built with ``HandoffBuilder`` and three specialist agents,
+all backed by ``AzureOpenAIChatClient`` with the appropriate MCP tool bindings.
+Autonomous mode (``with_interaction_mode("autonomous")``) is enabled so the
+workflow completes without waiting for human input after each specialist turn.
 
 Environment variables
 ---------------------
-FOUNDRY_PROJECT_ENDPOINT        (required) Azure AI Foundry project endpoint.
+AZURE_OPENAI_ENDPOINT           (required) Azure OpenAI service endpoint URL.
 FOUNDRY_MODEL_DEPLOYMENT_NAME   (optional) Model deployment name, default: gpt-4.1
+ACCOUNT_MCP_URL                 (optional) Account MCP URL, default: http://localhost:9001/mcp/
+PAYMENTS_MCP_URL                (optional) Payments MCP URL, default: http://localhost:9003/mcp/
+TRANSACTIONS_MCP_URL            (optional) Transactions MCP URL, default: http://localhost:9002/mcp/
+DOCUMENT_MCP_URL                (optional) Document MCP URL, default: http://localhost:9004/mcp/
 """
 
 from __future__ import annotations
 
 import os
-from contextlib import asynccontextmanager
 
-from agent_framework.azure import AzureAIClient
-from azure.identity.aio import DefaultAzureCredential
-
-from agents.account.agent import create_account_agent
-from agents.payments.agent import create_payment_agent
-from agents.transactions.agent import create_transaction_agent
+from agent_framework import MCPStreamableHTTPTool, Role
+from agent_framework._workflows import HandoffBuilder
+from agent_framework.azure import AzureOpenAIChatClient
+from azure.identity import DefaultAzureCredential
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-AGENT_NAME = "SupervisorAgent"
+SUPERVISOR_NAME = "supervisor_agent"
+ACCOUNT_AGENT_NAME = "account_agent"
+TRANSACTION_AGENT_NAME = "transaction_agent"
+PAYMENT_AGENT_NAME = "payment_agent"
 
-SYSTEM_PROMPT = """\
-You are the Supervisor Agent for a banking assistant. Your sole job is to
-classify the user's intent and respond with ONLY the single intent label that
-best matches, from the following list:
+SUPERVISOR_SYSTEM_PROMPT = """\
+You are the Supervisor Agent for a banking assistant. Your job is to triage
+the user's request and route it to the correct specialist agent by calling
+the appropriate handoff tool. ALWAYS hand off to a specialist – never answer
+directly.
 
-  AccountInfo       – questions about account balance, account details,
-                      payment methods, or beneficiaries.
-  Transactions      – questions about transaction history, past payments,
-                      or searching transactions.
-  PayInvoice        – requests to pay an invoice or bill from a document or URL.
-  RepeatPayment     – requests to repeat or resubmit a previous payment.
-  Unknown           – the request does not match any of the above.
-
-Rules:
-- Respond with ONLY the intent label and nothing else.
-- Do not include punctuation, explanations, or any other text.
+Routing rules:
+- Questions about account balance, account details, payment methods, or
+  beneficiaries → hand off to account_agent.
+- Questions about transaction history, past payments, or searching
+  transactions → hand off to transaction_agent.
+- Requests to pay an invoice/bill or repeat a previous payment → hand off
+  to payment_agent.
 """
 
-INTENT_ACCOUNT = "AccountInfo"
-INTENT_TRANSACTIONS = "Transactions"
-INTENT_PAY_INVOICE = "PayInvoice"
-INTENT_REPEAT_PAYMENT = "RepeatPayment"
-INTENT_UNKNOWN = "Unknown"
+ACCOUNT_AGENT_SYSTEM_PROMPT = """\
+You are the Account Agent for a banking assistant.
 
-_PAYMENT_INTENTS: frozenset[str] = frozenset(
-    {INTENT_PAY_INVOICE, INTENT_REPEAT_PAYMENT}
-)
+Your responsibilities:
+- Look up account information for a customer by their username or account ID.
+- Report current balance, account status, type, and currency.
+- List all payment methods registered on an account.
+- List all registered beneficiaries for an account.
+- Answer questions about credit balance or account standing.
 
-_KNOWN_INTENTS: frozenset[str] = frozenset(
-    {
-        INTENT_ACCOUNT,
-        INTENT_TRANSACTIONS,
-        INTENT_PAY_INVOICE,
-        INTENT_REPEAT_PAYMENT,
-        INTENT_UNKNOWN,
-    }
-)
+Guidelines:
+- Always confirm the account exists via a tool call before reporting details.
+- Use only data returned by tools – never speculate or fabricate figures.
+- Do not reveal full card numbers or authentication credentials.
+- Present monetary values with currency symbols and two decimal places.
+- If a requested account or resource is not found, inform the user politely.
+"""
+
+TRANSACTION_AGENT_SYSTEM_PROMPT = """\
+You are the Transaction Agent for a banking assistant.
+
+Your responsibilities:
+- Retrieve transaction history for a given account or recipient.
+- Search transactions by keyword, category, or description.
+- Report transaction details including amount, currency, date, and status.
+- Notify or record new transaction events when requested.
+- Look up account information to provide context for transactions.
+
+Guidelines:
+- Always confirm the account or recipient exists via a tool call before
+  reporting details.
+- Use only data returned by tools – never speculate or fabricate figures.
+- Present monetary values with currency symbols and two decimal places.
+- Format transaction lists clearly, one transaction per line.
+- If a requested account, recipient, or transaction is not found, inform
+  the user politely.
+"""
+
+PAYMENT_AGENT_SYSTEM_PROMPT = """\
+You are the Payment Agent for a banking assistant.
+
+Your responsibilities:
+- Submit payments on behalf of a customer (PayInvoice or RepeatPayment).
+- PayInvoice: scan an invoice image/PDF via the document tool, extract the
+  amount and beneficiary details, then submit via the payments tool.
+- RepeatPayment: look up a previous payment in transaction history and
+  resubmit it via the payments tool.
+- Use the account tool to verify account details and available balance.
+
+Guidelines:
+- Always verify the account exists and has sufficient balance before
+  submitting.
+- Use only data returned by tools – never speculate or fabricate figures.
+- Do not reveal full card numbers or authentication credentials.
+- Present monetary values with currency symbols and two decimal places.
+- Confirm the payment reference and status after submission.
+- If a requested account, beneficiary, or invoice is not found, inform the
+  user politely.
+"""
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -79,85 +127,180 @@ _KNOWN_INTENTS: frozenset[str] = frozenset(
 
 def _get_config() -> dict:
     """Read configuration from environment variables at call time."""
-    endpoint = os.environ.get("FOUNDRY_PROJECT_ENDPOINT")
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
     if not endpoint:
         raise OSError(
-            "FOUNDRY_PROJECT_ENDPOINT environment variable is required."
+            "AZURE_OPENAI_ENDPOINT environment variable is required."
         )
     return {
-        "project_endpoint": endpoint,
+        "azure_openai_endpoint": endpoint,
         "model_deployment_name": os.environ.get(
             "FOUNDRY_MODEL_DEPLOYMENT_NAME", "gpt-4.1"
+        ),
+        "account_mcp_url": os.environ.get(
+            "ACCOUNT_MCP_URL", "http://localhost:9001/mcp/"
+        ),
+        "payments_mcp_url": os.environ.get(
+            "PAYMENTS_MCP_URL", "http://localhost:9003/mcp/"
+        ),
+        "transactions_mcp_url": os.environ.get(
+            "TRANSACTIONS_MCP_URL", "http://localhost:9002/mcp/"
+        ),
+        "document_mcp_url": os.environ.get(
+            "DOCUMENT_MCP_URL", "http://localhost:9004/mcp/"
         ),
     }
 
 
-def _classify_intent(text: str) -> str:
-    """Extract the intent label from the classifier agent's response.
+def _build_workflow(config: dict):
+    """Build the HandoffBuilder workflow with all specialist agents.
 
-    Returns one of the known intent constants, or ``INTENT_UNKNOWN`` if the
-    response text does not match any recognised label.
+    Creates three specialist agents with their respective MCP tool bindings and
+    a supervisor (triage) agent, then assembles them into a HandoffBuilder
+    workflow running in autonomous mode.
+
+    Parameters
+    ----------
+    config:
+        Configuration dict as returned by ``_get_config()``.
+
+    Returns
+    -------
+    Workflow
+        A fully configured MAF Workflow ready to run.
     """
-    label = (text or "").strip()
-    return label if label in _KNOWN_INTENTS else INTENT_UNKNOWN
+    credential = DefaultAzureCredential()
+    chat_client = AzureOpenAIChatClient(
+        endpoint=config["azure_openai_endpoint"],
+        deployment_name=config["model_deployment_name"],
+        credential=credential,
+    )
+
+    # Supervisor / triage agent – no tools; routes via handoff tool calls
+    supervisor = chat_client.create_agent(
+        name=SUPERVISOR_NAME,
+        instructions=SUPERVISOR_SYSTEM_PROMPT,
+    )
+
+    # Account specialist agent
+    account_agent = chat_client.create_agent(
+        name=ACCOUNT_AGENT_NAME,
+        instructions=ACCOUNT_AGENT_SYSTEM_PROMPT,
+        tools=[
+            MCPStreamableHTTPTool(
+                name="AccountMCP",
+                description=(
+                    "Account service tools: look up accounts by username, "
+                    "retrieve account details, payment methods, and beneficiaries."
+                ),
+                url=config["account_mcp_url"],
+                load_prompts=False,
+            )
+        ],
+    )
+
+    # Transaction specialist agent
+    transaction_agent = chat_client.create_agent(
+        name=TRANSACTION_AGENT_NAME,
+        instructions=TRANSACTION_AGENT_SYSTEM_PROMPT,
+        tools=[
+            MCPStreamableHTTPTool(
+                name="AccountMCP",
+                description=(
+                    "Account service tools: look up accounts by username, "
+                    "retrieve account details, payment methods, and beneficiaries."
+                ),
+                url=config["account_mcp_url"],
+                load_prompts=False,
+            ),
+            MCPStreamableHTTPTool(
+                name="TransactionsMCP",
+                description=(
+                    "Transaction service tools: search transactions, retrieve "
+                    "transaction history by recipient, and record new transactions."
+                ),
+                url=config["transactions_mcp_url"],
+                load_prompts=False,
+            ),
+        ],
+    )
+
+    # Payment specialist agent
+    payment_agent = chat_client.create_agent(
+        name=PAYMENT_AGENT_NAME,
+        instructions=PAYMENT_AGENT_SYSTEM_PROMPT,
+        tools=[
+            MCPStreamableHTTPTool(
+                name="AccountMCP",
+                description=(
+                    "Account service tools: look up accounts by username, "
+                    "retrieve account details, payment methods, and beneficiaries."
+                ),
+                url=config["account_mcp_url"],
+                load_prompts=False,
+            ),
+            MCPStreamableHTTPTool(
+                name="PaymentsMCP",
+                description=(
+                    "Payments service tools: submit payments and "
+                    "retrieve payment status."
+                ),
+                url=config["payments_mcp_url"],
+                load_prompts=False,
+            ),
+            MCPStreamableHTTPTool(
+                name="TransactionsMCP",
+                description=(
+                    "Transactions service tools: search transaction history "
+                    "and look up past payments by recipient."
+                ),
+                url=config["transactions_mcp_url"],
+                load_prompts=False,
+            ),
+            MCPStreamableHTTPTool(
+                name="DocumentMCP",
+                description=(
+                    "Document service tools: scan invoices and extract structured "
+                    "payment information such as vendor name, amount, and due date."
+                ),
+                url=config["document_mcp_url"],
+                load_prompts=False,
+            ),
+        ],
+    )
+
+    return (
+        HandoffBuilder(
+            name="banking_supervisor",
+            participants=[supervisor, account_agent, transaction_agent, payment_agent],
+        )
+        .set_coordinator(supervisor)
+        .with_interaction_mode("autonomous")
+        .build()
+    )
 
 
-# ---------------------------------------------------------------------------
-# Supervisor wrapper
-# ---------------------------------------------------------------------------
+def _extract_response_text(outputs: list) -> str:
+    """Extract the last assistant message text from workflow outputs.
 
+    Parameters
+    ----------
+    outputs:
+        List of outputs from ``WorkflowRunResult.get_outputs()``.  Each item
+        is a ``list[ChatMessage]`` representing the cleaned conversation.
 
-class _SupervisorAgent:
-    """Wraps the MAF classifier agent and routes to registered specialist agents."""
-
-    def __init__(
-        self,
-        classifier_agent,
-        account_agent_factory,
-        transaction_agent_factory,
-        payment_agent_factory,
-    ) -> None:
-        self._classifier = classifier_agent
-        self._account_factory = account_agent_factory
-        self._transaction_factory = transaction_agent_factory
-        self._payment_factory = payment_agent_factory
-
-    async def run(self, message: str, thread=None) -> object:
-        """Classify intent then hand off to the appropriate specialist agent.
-
-        Parameters
-        ----------
-        message:
-            The user message to classify and forward.
-        thread:
-            Optional conversation thread passed to the specialist agent for
-            multi-turn sessions.
-
-        Returns
-        -------
-        object
-            The result object returned by the specialist agent (or the
-            classifier result when the intent is Unknown).
-        """
-        # Step 1: classify intent via the supervisor LLM
-        classify_result = await self._classifier.run(message)
-        intent = _classify_intent(classify_result.text or "")
-
-        # Step 2: hand off to the registered specialist agent
-        if intent == INTENT_ACCOUNT:
-            factory = self._account_factory
-        elif intent == INTENT_TRANSACTIONS:
-            factory = self._transaction_factory
-        elif intent in _PAYMENT_INTENTS:
-            factory = self._payment_factory
-        else:
-            # Unknown intent – return the classifier's response directly
-            return classify_result
-
-        async with factory() as specialist:
-            if thread is not None:
-                return await specialist.run(message, thread=thread)
-            return await specialist.run(message)
+    Returns
+    -------
+    str
+        Text of the last assistant message, or an empty string if none found.
+    """
+    if not outputs:
+        return ""
+    conversation = outputs[-1]
+    for msg in reversed(conversation):
+        if msg.role == Role.ASSISTANT and msg.text:
+            return msg.text
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -165,50 +308,17 @@ class _SupervisorAgent:
 # ---------------------------------------------------------------------------
 
 
-@asynccontextmanager
-async def create_supervisor_agent():
-    """Async context manager that yields a ready-to-use Supervisor Agent.
-
-    The supervisor classifies user intent and hands off to the appropriate
-    registered specialist agent (Account, Transaction, or Payment).
-
-    Example usage::
-
-        async with create_supervisor_agent() as agent:
-            result = await agent.run("Show me my balance")
-            print(result.text)
-    """
-    config = _get_config()
-
-    async with (
-        DefaultAzureCredential() as credential,
-        AzureAIClient(
-            project_endpoint=config["project_endpoint"],
-            model_deployment_name=config["model_deployment_name"],
-            credential=credential,
-        ).create_agent(
-            name=AGENT_NAME,
-            instructions=SYSTEM_PROMPT,
-            tools=[],
-        ) as classifier_agent,
-    ):
-        yield _SupervisorAgent(
-            classifier_agent=classifier_agent,
-            account_agent_factory=create_account_agent,
-            transaction_agent_factory=create_transaction_agent,
-            payment_agent_factory=create_payment_agent,
-        )
-
-
-async def run_query(message: str, thread=None) -> str:
+async def run_query(message: str) -> str:
     """Run a single query through the Supervisor Agent and return the response text.
+
+    Builds a HandoffBuilder workflow with autonomous mode, runs the user
+    message through the supervisor triage agent, which hands off to the
+    appropriate specialist agent, and returns the final text response.
 
     Parameters
     ----------
     message:
         The user message to send to the supervisor.
-    thread:
-        Optional existing conversation thread for multi-turn sessions.
 
     Returns
     -------
@@ -216,6 +326,7 @@ async def run_query(message: str, thread=None) -> str:
         The specialist agent's text response, or an empty string if no text
         was produced.
     """
-    async with create_supervisor_agent() as agent:
-        result = await agent.run(message, thread=thread)
-        return result.text or ""
+    config = _get_config()
+    workflow = _build_workflow(config)
+    result = await workflow.run(message)
+    return _extract_response_text(result.get_outputs())
