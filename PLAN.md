@@ -304,19 +304,19 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 
 ---
 
-### Issue 17 – Provision Azure AI Foundry & Deploy Agents to Foundry Agent Service
+### Issue 17 – Provision Microsoft Foundry & Deploy Agents to Foundry Agent Service
 
-**Goal:** Provision the Azure AI Foundry project, Azure OpenAI resource, and Foundry Agent Service deployment, then deploy all four agents and validate end-to-end routing in Azure.
+**Goal:** Provision the Microsoft Foundry resource project, Azure OpenAI model deployment, then deploy all four agents and validate end-to-end routing in Azure.
 
 **Azure resources to provision:**
-- Azure AI Foundry Hub + Project.
-- Azure OpenAI resource with GPT-4.1 model deployment.
-- Foundry Agent Service deployment for all four agents (Supervisor, Account, Transaction, Payment).
+- Creation of **Microsoft Foundry** Azure resource.
+- Creation of a **Project** in this resource.
+- Creation of GPT-4.1 model deployment in this project.
+- Ensure all four agents (Supervisor, Account, Transaction, Payment) can be deployed in this project using Foundry Agent Service.
 
 **Tasks:**
-- Add `infra/modules/ai-foundry.bicep` (Hub + Project).
-- Add `infra/modules/openai.bicep` (Azure OpenAI resource + GPT-4.1 deployment).
-- Add `infra/modules/foundry-agent-service.bicep` referencing all four agent definitions.
+- Add `infra/modules/ai-foundry.bicep` (Foundry Resource + Project).
+- Add `infra/modules/openai.bicep` (GPT-4.1 deployment).
 - Grant the Managed Identity `Cognitive Services OpenAI User` and `Azure AI Developer` roles.
 - Extend `infra/main.bicep` with all new modules.
 - Push `infra/` changes to trigger `validate-infra.yml` (ephemeral `azd provision` validation); merge to `main` to trigger `azure-dev.yml` (`azd provision` + `azd deploy` to register agents on Foundry Agent Service).
