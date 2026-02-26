@@ -1,7 +1,7 @@
 @description('Name of the existing Foundry account.')
 param foundryName string
 
-@description('Name for the GPT-4.1 model deployment.')
+@description('Name for the model deployment.')
 param modelDeploymentName string = 'agent-model'
 
 @description('Principal ID of the managed identity to assign AI roles.')
@@ -20,7 +20,7 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' exist
     properties: {
       model: {
         format: 'OpenAI'
-        name: 'gpt-4o'
+        name: 'gpt-4p'
         version: '2024-11-20'
       }
       versionUpgradeOption: 'NoAutoUpgrade'
