@@ -20,8 +20,8 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' exist
     properties: {
       model: {
         format: 'OpenAI'
-        name: 'gpt-4.1'
-        version: '2025-04-14'
+        name: 'gpt-4o'
+        version: '2024-11-20'
       }
       versionUpgradeOption: 'NoAutoUpgrade'
       raiPolicyName: 'Microsoft.DefaultV2'
