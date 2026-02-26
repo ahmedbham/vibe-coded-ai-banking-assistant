@@ -15,13 +15,13 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' exist
     name: modelDeploymentName
     sku: {
       capacity: 50
-      name: 'DataZoneStandard'
+      name: 'GlobalStandard'
     }
     properties: {
       model: {
         format: 'OpenAI'
         name: 'gpt-4.1'
-        version: '2024-11-20'
+        version: '2025-04-14'
       }
       versionUpgradeOption: 'NoAutoUpgrade'
       raiPolicyName: 'Microsoft.DefaultV2'
@@ -29,10 +29,10 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' exist
   }
 }
 
-// Cognitive Services OpenAI User – allows calling Azure OpenAI APIs
-var cognitiveServicesOpenAiUserRoleId = subscriptionResourceId(
+// Cognitive Services User – allows calling Azure Cognitive Services / OpenAI APIs
+var cognitiveServicesUserRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  '5e0bd9bd-7b46-4f31-bfdd-2b6d9cde2fcf'
+  'a97b65f3-24c7-4388-baec-2e87135dc908'
 )
 
 // Azure AI Developer – allows creating / managing agents in Foundry Agent Service
@@ -42,10 +42,10 @@ var azureAiDeveloperRoleId = subscriptionResourceId(
 )
 
 resource openAiUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(foundry.id, managedIdentityPrincipalId, cognitiveServicesOpenAiUserRoleId)
+  name: guid(foundry.id, managedIdentityPrincipalId, cognitiveServicesUserRoleId)
   scope: foundry
   properties: {
-    roleDefinitionId: cognitiveServicesOpenAiUserRoleId
+    roleDefinitionId: cognitiveServicesUserRoleId
     principalId: managedIdentityPrincipalId
     principalType: 'ServicePrincipal'
   }
