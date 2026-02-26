@@ -32,6 +32,9 @@ var paymentsServiceAppName = 'ca-payments-${suffix}'
 var accountMcpAppName = 'ca-account-mcp-${suffix}'
 var transactionsMcpAppName = 'ca-transactions-mcp-${suffix}'
 var paymentsMcpAppName = 'ca-payments-mcp-${suffix}'
+var foundryName = 'aif-${suffix}-${uniqueSuffix}'
+var foundryProjectName = 'aifp-${suffix}'
+var modelDeploymentName = 'agent-model'
 
 // ---------------------------------------------------------------------------
 // Modules
@@ -81,6 +84,41 @@ module keyVault 'modules/key-vault.bicep' = {
     environment: environment
     project: project
     owner: owner
+  }
+}
+
+module aiFoundry 'modules/ai-foundry.bicep' = {
+  name: 'deploy-ai-foundry'
+  params: {
+    location: location
+    foundryName: foundryName
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
+module aiFoundryProject 'modules/ai-foundry-project.bicep' = {
+  name: 'deploy-ai-foundry-project'
+  dependsOn: [aiFoundry]
+  params: {
+    location: location
+    foundryName: foundryName
+    projectName: foundryProjectName
+    managedIdentityId: identity.outputs.id
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
+module openai 'modules/openai.bicep' = {
+  name: 'deploy-openai'
+  dependsOn: [aiFoundry]
+  params: {
+    foundryName: foundryName
+    modelDeploymentName: modelDeploymentName
+    managedIdentityPrincipalId: identity.outputs.principalId
   }
 }
 
@@ -250,3 +288,25 @@ output transactionsMcpFqdn string = transactionsMcpApp.outputs.fqdn
 
 @description('FQDN of the Payments MCP Container App.')
 output paymentsMcpFqdn string = paymentsMcpApp.outputs.fqdn
+
+@description('Endpoint of the Foundry account (Azure OpenAI compatible).')
+output foundryEndpoint string = aiFoundry.outputs.endpoint
+
+@description('Endpoint of the Foundry project for agent registration.')
+output foundryProjectEndpoint string = aiFoundryProject.outputs.projectEndpoint
+
+@description('Name of the GPT-4.1 model deployment.')
+output foundryModelDeploymentName string = openai.outputs.modelDeploymentName
+
+// ---------------------------------------------------------------------------
+// Outputs – azd conventions for AI/Foundry env vars
+// ---------------------------------------------------------------------------
+
+@description('Azure OpenAI endpoint for the Supervisor Agent (AzureOpenAIChatClient).')
+output AZURE_OPENAI_ENDPOINT string = aiFoundry.outputs.endpoint
+
+@description('Foundry project endpoint for specialist agents (AzureAIClient).')
+output FOUNDRY_PROJECT_ENDPOINT string = aiFoundryProject.outputs.projectEndpoint
+
+@description('Model deployment name for all agents.')
+output FOUNDRY_MODEL_DEPLOYMENT_NAME string = openai.outputs.modelDeploymentName
