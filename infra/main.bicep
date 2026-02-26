@@ -32,6 +32,11 @@ var paymentsServiceAppName = 'ca-payments-${suffix}'
 var accountMcpAppName = 'ca-account-mcp-${suffix}'
 var transactionsMcpAppName = 'ca-transactions-mcp-${suffix}'
 var paymentsMcpAppName = 'ca-payments-mcp-${suffix}'
+var aiHubName            = 'aih-${suffix}'
+var aiProjectName        = 'aip-${suffix}'
+var aiStorageName        = 'st${replace(suffix, '-', '')}${uniqueSuffix}'
+var openAIName           = 'oai-${suffix}-${uniqueSuffix}'
+var gptDeploymentName    = 'gpt-4.1'
 
 // ---------------------------------------------------------------------------
 // Modules
@@ -195,6 +200,38 @@ module paymentsMcpApp 'modules/container-app-payments-mcp.bicep' = {
   }
 }
 
+module aiFoundry 'modules/ai-foundry.bicep' = {
+  name: 'deploy-ai-foundry'
+  params: {
+    location: location
+    hubName: aiHubName
+    projectName: aiProjectName
+    storageAccountName: aiStorageName
+    keyVaultId: keyVault.outputs.id
+    appInsightsId: resourceId('Microsoft.Insights/components', appInsightsName)
+    identityPrincipalId: identity.outputs.principalId
+    environment: environment
+    project: project
+    owner: owner
+  }
+  dependsOn: [
+    monitor
+  ]
+}
+
+module openAI 'modules/openai.bicep' = {
+  name: 'deploy-openai'
+  params: {
+    location: location
+    openAIName: openAIName
+    gptDeploymentName: gptDeploymentName
+    identityPrincipalId: identity.outputs.principalId
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs – human-readable
 // ---------------------------------------------------------------------------
@@ -250,3 +287,27 @@ output transactionsMcpFqdn string = transactionsMcpApp.outputs.fqdn
 
 @description('FQDN of the Payments MCP Container App.')
 output paymentsMcpFqdn string = paymentsMcpApp.outputs.fqdn
+
+// ---------------------------------------------------------------------------
+// Outputs – Microsoft Foundry & Azure OpenAI
+// ---------------------------------------------------------------------------
+
+@description('Endpoint of the AI Project for agents (FOUNDRY_PROJECT_ENDPOINT).')
+output foundryProjectEndpoint string = aiFoundry.outputs.projectEndpoint
+
+@description('Endpoint of the Azure OpenAI account (AZURE_OPENAI_ENDPOINT).')
+output openAIEndpoint string = openAI.outputs.endpoint
+
+@description('Name of the GPT-4.1 model deployment.')
+output gptDeploymentName string = openAI.outputs.deploymentName
+
+// azd-convention outputs (uppercase = auto-mapped to azd environment vars)
+
+@description('AI Project endpoint for azd-deployed agent services.')
+output FOUNDRY_PROJECT_ENDPOINT string = aiFoundry.outputs.projectEndpoint
+
+@description('Azure OpenAI endpoint for azd-deployed agent services.')
+output AZURE_OPENAI_ENDPOINT string = openAI.outputs.endpoint
+
+@description('GPT-4.1 deployment name for azd-deployed agent services.')
+output FOUNDRY_MODEL_DEPLOYMENT_NAME string = openAI.outputs.deploymentName
