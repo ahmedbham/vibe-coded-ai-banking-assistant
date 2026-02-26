@@ -17,6 +17,71 @@ This repository is a **Multi-agent Banking Assistant** built with Python and the
 
 #### AI & Agent Framework
 - **Microsoft Agent Framework (MAF)**: Core framework for building and orchestrating agents.
+  - Use MAF's built-in tools and orchestration capabilities to compose agents.
+  - To install the SDK in Python, use `pip install agent-framework --pre`
+  - use following code sampple to create Foundry Account using bicep:
+
+  ```bicep
+  @description('Deploy Microsoft Foundry (account) with Foundry Agent Service capability.')
+resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' = {
+  name: foundryName
+  location: location
+  kind: 'AIServices'
+  sku: {
+    name: 'S0'
+  }
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    customSubDomainName: foundryName
+    allowProjectManagement: true // Foundry account + projects can be managed via Azure Portal, CLI, or SDK
+  }
+}
+  ```
+- use following code sample to create Foundry Project in the existing Foundry account using bicep:
+```bicep
+@description('Existing Foundry account. The project will be created as a child resource of this account.')
+resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' existing  = {
+  name: existingFoundryName
+
+  resource project 'projects' = {
+    name: 'projchat'
+    location: location
+    identity: {
+      type: 'UserAssigned'
+      userAssignedIdentities: {
+        '${agentUserManagedIdentity.id}': {}
+      }
+    }
+    properties: {
+      description: 'Chat using internet data in your Foundry Agent.'
+      displayName: 'Chat with Internet Data'
+    }
+  }
+}
+``` 
+- use following code sample to create GPT-4.1 deployment in the existing Foundry project using bicep:
+```bicep
+  @description('Models are managed at the account level. Deploy the GPT model that will be used for the Foundry agent logic.')
+  resource model 'deployments' = {
+    name: 'agent-model'
+    sku: {
+      capacity: 50
+      name: 'DataZoneStandard' // Production readiness, use provisioned deployments with automatic spillover https://learn.microsoft.com/azure/ai-services/openai/how-to/spillover-traffic-management.
+    }
+    properties: {
+      model: {
+        format: 'OpenAI'
+        name: 'gpt-4.1'
+        version: '2024-11-20'  // Use a model version available in your region.
+      }
+      versionUpgradeOption: 'NoAutoUpgrade' // Production deployments should not auto-upgrade models.  Testing compatibility is important.
+      raiPolicyName: 'Microsoft.DefaultV2'  // If this isn't strict enough for your use case, create a custom RAI policy.
+    }
+  }
+}
+```
 - **Azure OpenAI (GPT-4.1)**: Large language model powering agent intelligence. Use via the MAF SDK; do not call the Azure OpenAI REST API directly.
 
 #### Azure Services Integration

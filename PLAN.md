@@ -309,13 +309,14 @@ All services are hosted on **Azure Container Apps**; infrastructure is defined i
 **Goal:** Provision the Microsoft Foundry resource project, Azure OpenAI model deployment, then deploy all four agents and validate end-to-end routing in Azure.
 
 **Azure resources to provision:**
-- Creation of **Microsoft Foundry** Azure resource.
+- Creation of **Microsoft Foundry Account** Azure resource.
 - Creation of a **Project** in this resource.
-- Creation of GPT-4.1 model deployment in this project.
+- Creation of GPT-4.1 model deployment in the Foundry Account.
 - Ensure all four agents (Supervisor, Account, Transaction, Payment) can be deployed in this project using Foundry Agent Service.
 
 **Tasks:**
-- Add `infra/modules/ai-foundry.bicep` (Foundry Resource + Project).
+- Add `infra/modules/ai-foundry.bicep` (Foundry Account. NOT AI Hub resource).
+- Add `infra/modules/ai-foundry-project.bicep` (Foundry Project).
 - Add `infra/modules/openai.bicep` (GPT-4.1 deployment).
 - Grant the Managed Identity `Cognitive Services OpenAI User` and `Azure AI Developer` roles.
 - Extend `infra/main.bicep` with all new modules.
