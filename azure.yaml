@@ -22,40 +22,40 @@ services:
     language: py
     host: containerapp
     docker:
-      path: ./backend/Dockerfile
-      context: ./backend
+      path: ./Dockerfile
+      context: .
   transactions-service:
     project: ./backend
     language: py
     host: containerapp
     docker:
-      path: ./backend/Dockerfile.transactions
-      context: ./backend
+      path: ./Dockerfile.transactions
+      context: .
   payments-service:
     project: ./backend
     language: py
     host: containerapp
     docker:
-      path: ./backend/Dockerfile.payments
-      context: ./backend
+      path: ./Dockerfile.payments
+      context: .
   account-mcp:
     project: ./backend
     language: py
     host: containerapp
     docker:
-      path: ./backend/Dockerfile.account-mcp
-      context: ./backend
+      path: ./Dockerfile.account-mcp
+      context: .
   transactions-mcp:
     project: ./backend
     language: py
     host: containerapp
     docker:
-      path: ./backend/Dockerfile.transactions-mcp
-      context: ./backend
+      path: ./Dockerfile.transactions-mcp
+      context: .
   payments-mcp:
     project: ./backend
     language: py
     host: containerapp
     docker:
-      path: ./backend/Dockerfile.payments-mcp
-      context: ./backend
+      path: ./Dockerfile.payments-mcp
+      context: .
