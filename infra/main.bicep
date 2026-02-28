@@ -32,6 +32,7 @@ var paymentsServiceAppName = 'ca-payments-${suffix}'
 var accountMcpAppName = 'ca-account-mcp-${suffix}'
 var transactionsMcpAppName = 'ca-transactions-mcp-${suffix}'
 var paymentsMcpAppName = 'ca-payments-mcp-${suffix}'
+var chatApiAppName = 'ca-chat-api-${suffix}'
 var foundryName = 'aif-${suffix}-${uniqueSuffix}'
 var foundryProjectName = 'aifp-${suffix}'
 var modelDeploymentName = 'agent-model'
@@ -233,6 +234,27 @@ module paymentsMcpApp 'modules/container-app-payments-mcp.bicep' = {
   }
 }
 
+module chatApiApp 'modules/container-app-chat-api.bicep' = {
+  name: 'deploy-chat-api'
+  params: {
+    location: location
+    containerAppName: chatApiAppName
+    containerAppsEnvId: containerAppsEnv.outputs.id
+    acrLoginServer: containerRegistry.outputs.loginServer
+    managedIdentityId: identity.outputs.id
+    managedIdentityClientId: identity.outputs.clientId
+    appInsightsConnectionString: monitor.outputs.appInsightsConnectionString
+    azureOpenAiEndpoint: aiFoundry.outputs.endpoint
+    modelDeploymentName: modelDeploymentName
+    accountMcpUrl: 'https://${accountMcpApp.outputs.fqdn}/mcp'
+    transactionsMcpUrl: 'https://${transactionsMcpApp.outputs.fqdn}/mcp'
+    paymentsMcpUrl: 'https://${paymentsMcpApp.outputs.fqdn}/mcp'
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs – human-readable
 // ---------------------------------------------------------------------------
@@ -288,6 +310,9 @@ output transactionsMcpFqdn string = transactionsMcpApp.outputs.fqdn
 
 @description('FQDN of the Payments MCP Container App.')
 output paymentsMcpFqdn string = paymentsMcpApp.outputs.fqdn
+
+@description('FQDN of the Chat API Container App.')
+output chatApiFqdn string = chatApiApp.outputs.fqdn
 
 @description('Endpoint of the Foundry account (Azure OpenAI compatible).')
 output foundryEndpoint string = aiFoundry.outputs.endpoint
