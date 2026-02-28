@@ -21,9 +21,8 @@ endpoint instead of the mock.
 
 from __future__ import annotations
 
-import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -83,7 +82,9 @@ def _patch_maf(response_text: str = "Here is your account info."):
 
 
 class TestGetConfig:
-    def test_raises_when_endpoint_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_when_endpoint_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
         from agents.account.agent import _get_config
 
@@ -122,6 +123,7 @@ class TestGetConfig:
 class TestCreateMcpTools:
     def test_returns_one_streamable_http_tool(self) -> None:
         from agent_framework import MCPStreamableHTTPTool
+
         from agents.account.agent import _create_mcp_tools
 
         tools = _create_mcp_tools(MOCK_MCP_URL)
@@ -366,9 +368,10 @@ class TestAccountAgentIntegration:
         MCP-side response schema before the agent layer processes them.
         This acts as a contract test between the agent and the MCP server.
         """
-        import mcp.account_mcp as account_mcp_module
         from fastmcp import Client
         from httpx import ASGITransport, AsyncClient
+
+        import mcp.account_mcp as account_mcp_module
         from mcp.account_mcp import mcp as account_mcp
         from services.account_service import app as account_app
 

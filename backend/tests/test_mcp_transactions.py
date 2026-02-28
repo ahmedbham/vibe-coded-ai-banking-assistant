@@ -5,8 +5,8 @@ so that requests are served by the mock transactions service FastAPI app directl
 """
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 from fastmcp import Client
+from httpx import ASGITransport, AsyncClient
 
 import mcp.transactions_mcp as transactions_mcp_module
 from mcp.transactions_mcp import mcp

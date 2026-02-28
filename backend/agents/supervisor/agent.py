@@ -32,8 +32,8 @@ from __future__ import annotations
 import os
 
 from agent_framework import MCPStreamableHTTPTool
-from agent_framework.orchestrations import HandoffBuilder
 from agent_framework.azure import AzureOpenAIChatClient
+from agent_framework.orchestrations import HandoffBuilder
 from azure.identity import DefaultAzureCredential
 
 # ---------------------------------------------------------------------------

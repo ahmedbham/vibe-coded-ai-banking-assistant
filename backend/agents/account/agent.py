@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
 
 from agent_framework import MCPStreamableHTTPTool
 from agent_framework.azure import AzureOpenAIResponsesClient
@@ -54,7 +53,7 @@ def _get_config() -> dict:
     """Read configuration from environment variables at call time."""
     endpoint = os.environ.get("FOUNDRY_PROJECT_ENDPOINT")
     if not endpoint:
-        raise EnvironmentError(
+        raise OSError(
             "FOUNDRY_PROJECT_ENDPOINT environment variable is required."
         )
     return {

@@ -5,8 +5,8 @@ so that requests are served by the mock account service FastAPI app directly.
 """
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 from fastmcp import Client
+from httpx import ASGITransport, AsyncClient
 
 import mcp.account_mcp as account_mcp_module
 from mcp.account_mcp import mcp
