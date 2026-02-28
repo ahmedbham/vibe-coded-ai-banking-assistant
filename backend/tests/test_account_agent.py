@@ -5,7 +5,7 @@ Unit tests
 - `_get_config` raises when FOUNDRY_PROJECT_ENDPOINT is missing.
 - `_get_config` picks up all environment variables.
 - `_create_mcp_tools` returns one MCPStreamableHTTPTool with the expected URL.
-- `create_account_agent` passes the system prompt + tools to AzureAIClient.
+- `create_account_agent` passes the system prompt + tools to AzureOpenAIResponsesClient.
 - `run_query` returns the agent's text and forwards an optional thread.
 
 Integration tests
@@ -50,7 +50,7 @@ def _make_mock_agent(response_text: str = "Here is your account info.") -> Async
 
 @asynccontextmanager
 async def _agent_ctx_manager(agent: AsyncMock) -> AsyncGenerator:
-    """Simulate `AzureAIClient(...).create_agent(...) as agent`."""
+    """Simulate `AzureOpenAIResponsesClient(...).as_agent(...) as agent`."""
     yield agent
 
 
@@ -58,18 +58,18 @@ def _patch_maf(response_text: str = "Here is your account info."):
     """Return a tuple of patch context-managers that replace the MAF layer."""
     mock_agent = _make_mock_agent(response_text)
 
+    # Make mock_agent behave as an async context manager (Agent protocol)
+    mock_agent.__aenter__ = AsyncMock(return_value=mock_agent)
+    mock_agent.__aexit__ = AsyncMock(return_value=False)
+
     # Mock DefaultAzureCredential (azure.identity.aio) as async CM
     mock_credential = AsyncMock()
     mock_credential.__aenter__ = AsyncMock(return_value=mock_credential)
     mock_credential.__aexit__ = AsyncMock(return_value=False)
 
-    # Mock AzureAIClient.create_agent as async CM yielding mock_agent
-    mock_create_agent_cm = MagicMock()
-    mock_create_agent_cm.__aenter__ = AsyncMock(return_value=mock_agent)
-    mock_create_agent_cm.__aexit__ = AsyncMock(return_value=False)
-
+    # Mock AzureOpenAIResponsesClient.as_agent returning mock_agent (an async CM)
     mock_azure_client = MagicMock()
-    mock_azure_client.create_agent = MagicMock(return_value=mock_create_agent_cm)
+    mock_azure_client.as_agent = MagicMock(return_value=mock_agent)
 
     mock_client_cls = MagicMock(return_value=mock_azure_client)
     mock_credential_cls = MagicMock(return_value=mock_credential)
@@ -166,22 +166,22 @@ class TestCreateAccountAgent:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureAIClient", mock_client_cls),
+            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
         ):
             from agents.account.agent import SYSTEM_PROMPT, create_account_agent
 
             async with create_account_agent() as agent:
                 assert agent is mock_agent
 
-        # Verify AzureAIClient was constructed with the Foundry endpoint
+        # Verify AzureOpenAIResponsesClient was constructed with the Foundry endpoint
         mock_client_cls.assert_called_once()
         call_kwargs = mock_client_cls.call_args.kwargs
         assert call_kwargs["project_endpoint"] == MOCK_ENDPOINT
 
         # Verify create_agent was called with the system prompt
         mock_azure_client = mock_client_cls.return_value
-        mock_azure_client.create_agent.assert_called_once()
-        create_agent_kwargs = mock_azure_client.create_agent.call_args.kwargs
+        mock_azure_client.as_agent.assert_called_once()
+        create_agent_kwargs = mock_azure_client.as_agent.call_args.kwargs
         assert create_agent_kwargs["instructions"] == SYSTEM_PROMPT
         assert create_agent_kwargs["name"] == "AccountAgent"
         # Tools list should be non-empty
@@ -197,7 +197,7 @@ class TestCreateAccountAgent:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureAIClient", mock_client_cls),
+            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
         ):
             from agents.account.agent import create_account_agent
 
@@ -205,7 +205,7 @@ class TestCreateAccountAgent:
                 pass
 
         call_kwargs = mock_client_cls.call_args.kwargs
-        assert call_kwargs["model_deployment_name"] == "gpt-4.1-mini"
+        assert call_kwargs["deployment_name"] == "gpt-4.1-mini"
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +224,7 @@ class TestRunQuery:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureAIClient", mock_client_cls),
+            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -245,7 +245,7 @@ class TestRunQuery:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureAIClient", mock_client_cls),
+            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -265,7 +265,7 @@ class TestRunQuery:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureAIClient", mock_client_cls),
+            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -287,7 +287,7 @@ class TestRunQuery:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureAIClient", mock_client_cls),
+            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -324,7 +324,7 @@ class TestAccountAgentIntegration:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureAIClient", mock_client_cls),
+            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -345,7 +345,7 @@ class TestAccountAgentIntegration:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureAIClient", mock_client_cls),
+            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
         ):
             from agents.account.agent import create_account_agent
 
@@ -354,7 +354,7 @@ class TestAccountAgentIntegration:
 
         # Inspect the tools passed to create_agent
         create_agent_kwargs = (
-            mock_client_cls.return_value.create_agent.call_args.kwargs
+            mock_client_cls.return_value.as_agent.call_args.kwargs
         )
         tool = create_agent_kwargs["tools"][0]
         assert tool.url == custom_url
