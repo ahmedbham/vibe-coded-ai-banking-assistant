@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from services.payments_service import app, _PAYMENTS
+from services.payments_service import _PAYMENTS, app
 
 
 @pytest.fixture(autouse=True)

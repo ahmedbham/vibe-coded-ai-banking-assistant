@@ -5,7 +5,7 @@ Run with:
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -65,7 +65,10 @@ async def submit_payment(payment: PaymentRequest) -> PaymentResponse:
     if duplicate_key in _PAYMENTS:
         raise HTTPException(
             status_code=409,
-            detail=f"Duplicate payment: reference '{payment.reference}' already submitted for account '{payment.account_id}'",
+            detail=(
+                f"Duplicate payment: reference '{payment.reference}'"
+                f" already submitted for account '{payment.account_id}'"
+            ),
         )
 
     confirmation_id = str(uuid.uuid4())
@@ -77,7 +80,7 @@ async def submit_payment(payment: PaymentRequest) -> PaymentResponse:
         "currency": payment.currency,
         "reference": payment.reference,
         "status": "confirmed",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     _PAYMENTS[duplicate_key] = record
     return PaymentResponse(**record)

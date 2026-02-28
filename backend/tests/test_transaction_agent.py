@@ -5,7 +5,8 @@ Unit tests
 - `_get_config` raises when FOUNDRY_PROJECT_ENDPOINT is missing.
 - `_get_config` picks up all environment variables.
 - `_create_mcp_tools` returns two MCPStreamableHTTPTools with the expected URLs.
-- `create_transaction_agent` passes the system prompt + tools to AzureOpenAIResponsesClient.
+- `create_transaction_agent` passes the system prompt + tools to
+  AzureOpenAIResponsesClient.
 - `run_query` returns the agent's text and forwards an optional thread.
 
 Integration tests
@@ -18,9 +19,8 @@ subscription is required.
 
 from __future__ import annotations
 
-import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -81,7 +81,9 @@ def _patch_maf(response_text: str = "Here are your transactions."):
 
 
 class TestGetConfig:
-    def test_raises_when_endpoint_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_when_endpoint_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
         from agents.transactions.agent import _get_config
 
@@ -124,6 +126,7 @@ class TestGetConfig:
 class TestCreateMcpTools:
     def test_returns_two_streamable_http_tools(self) -> None:
         from agent_framework import MCPStreamableHTTPTool
+
         from agents.transactions.agent import _create_mcp_tools
 
         tools = _create_mcp_tools(MOCK_ACCOUNT_MCP_URL, MOCK_TRANSACTIONS_MCP_URL)
@@ -179,9 +182,15 @@ class TestCreateTransactionAgent:
                 "agents.transactions.agent.DefaultAzureCredential",
                 mock_credential_cls,
             ),
-            patch("agents.transactions.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch(
+                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                mock_client_cls,
+            ),
         ):
-            from agents.transactions.agent import SYSTEM_PROMPT, create_transaction_agent
+            from agents.transactions.agent import (
+                SYSTEM_PROMPT,
+                create_transaction_agent,
+            )
 
             async with create_transaction_agent() as agent:
                 assert agent is mock_agent
@@ -213,7 +222,10 @@ class TestCreateTransactionAgent:
                 "agents.transactions.agent.DefaultAzureCredential",
                 mock_credential_cls,
             ),
-            patch("agents.transactions.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch(
+                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                mock_client_cls,
+            ),
         ):
             from agents.transactions.agent import create_transaction_agent
 
@@ -243,7 +255,10 @@ class TestRunQuery:
                 "agents.transactions.agent.DefaultAzureCredential",
                 mock_credential_cls,
             ),
-            patch("agents.transactions.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch(
+                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                mock_client_cls,
+            ),
         ):
             from agents.transactions.agent import run_query
 
@@ -267,7 +282,10 @@ class TestRunQuery:
                 "agents.transactions.agent.DefaultAzureCredential",
                 mock_credential_cls,
             ),
-            patch("agents.transactions.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch(
+                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                mock_client_cls,
+            ),
         ):
             from agents.transactions.agent import run_query
 
@@ -290,7 +308,10 @@ class TestRunQuery:
                 "agents.transactions.agent.DefaultAzureCredential",
                 mock_credential_cls,
             ),
-            patch("agents.transactions.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch(
+                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                mock_client_cls,
+            ),
         ):
             from agents.transactions.agent import run_query
 
@@ -315,7 +336,10 @@ class TestRunQuery:
                 "agents.transactions.agent.DefaultAzureCredential",
                 mock_credential_cls,
             ),
-            patch("agents.transactions.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch(
+                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                mock_client_cls,
+            ),
         ):
             from agents.transactions.agent import run_query
 
@@ -356,7 +380,10 @@ class TestTransactionAgentIntegration:
                 "agents.transactions.agent.DefaultAzureCredential",
                 mock_credential_cls,
             ),
-            patch("agents.transactions.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch(
+                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                mock_client_cls,
+            ),
         ):
             from agents.transactions.agent import run_query
 
@@ -370,7 +397,7 @@ class TestTransactionAgentIntegration:
     async def test_mcp_tools_configured_with_env_urls(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """_create_mcp_tools must use the ACCOUNT_MCP_URL and TRANSACTIONS_MCP_URL env vars."""
+        """_create_mcp_tools must use the env var URLs."""
         custom_account_url = "http://custom-account-mcp:9001/mcp/"
         custom_transactions_url = "http://custom-transactions-mcp:9002/mcp/"
         monkeypatch.setenv("ACCOUNT_MCP_URL", custom_account_url)
@@ -383,7 +410,10 @@ class TestTransactionAgentIntegration:
                 "agents.transactions.agent.DefaultAzureCredential",
                 mock_credential_cls,
             ),
-            patch("agents.transactions.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch(
+                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                mock_client_cls,
+            ),
         ):
             from agents.transactions.agent import create_transaction_agent
 
@@ -406,9 +436,10 @@ class TestTransactionAgentIntegration:
         MCP-side response schema before the agent layer processes them.
         This acts as a contract test between the agent and the MCP server.
         """
-        import mcp.transactions_mcp as transactions_mcp_module
         from fastmcp import Client
         from httpx import ASGITransport, AsyncClient
+
+        import mcp.transactions_mcp as transactions_mcp_module
         from mcp.transactions_mcp import mcp as transactions_mcp
         from services.transactions_service import app as transactions_app
 

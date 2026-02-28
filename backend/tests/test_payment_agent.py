@@ -19,9 +19,8 @@ no live Azure subscription is required.
 
 from __future__ import annotations
 
-import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -38,7 +37,9 @@ MOCK_TRANSACTIONS_MCP_URL = "http://localhost:9002/mcp/"
 MOCK_DOCUMENT_MCP_URL = "http://localhost:9004/mcp/"
 
 
-def _make_mock_agent(response_text: str = "Payment submitted successfully.") -> AsyncMock:
+def _make_mock_agent(
+    response_text: str = "Payment submitted successfully.",
+) -> AsyncMock:
     """Return an async mock that behaves like a MAF ChatAgent."""
     mock_result = MagicMock()
     mock_result.text = response_text
@@ -84,7 +85,9 @@ def _patch_maf(response_text: str = "Payment submitted successfully."):
 
 
 class TestGetConfig:
-    def test_raises_when_endpoint_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_when_endpoint_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
         from agents.payments.agent import _get_config
 
@@ -135,6 +138,7 @@ class TestGetConfig:
 class TestCreateMcpTools:
     def test_returns_four_streamable_http_tools(self) -> None:
         from agent_framework import MCPStreamableHTTPTool
+
         from agents.payments.agent import _create_mcp_tools
 
         tools = _create_mcp_tools(
@@ -408,9 +412,10 @@ class TestPaymentAgentIntegration:
         This acts as a contract test verifying the MCP tool schema before
         the agent layer processes it.
         """
-        import mcp.payments_mcp as payments_mcp_module
         from fastmcp import Client
         from httpx import ASGITransport, AsyncClient
+
+        import mcp.payments_mcp as payments_mcp_module
         from mcp.payments_mcp import mcp as payments_mcp
         from services.payments_service import app as payments_app
 

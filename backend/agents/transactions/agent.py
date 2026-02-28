@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
 
 from agent_framework import MCPStreamableHTTPTool
 from agent_framework.azure import AzureOpenAIResponsesClient
@@ -40,11 +39,13 @@ Your responsibilities:
 - Look up account information to provide context for transactions.
 
 Guidelines:
-- Always confirm the account or recipient exists via a tool call before reporting details.
+- Always confirm the account or recipient exists via a tool call
+  before reporting details.
 - Use only data returned by tools – never speculate or fabricate figures.
 - Present monetary values with currency symbols and two decimal places.
 - Format transaction lists clearly, one transaction per line with key fields.
-- If a requested account, recipient, or transaction is not found, inform the user politely.
+- If a requested account, recipient, or transaction is not found,
+  inform the user politely.
 """
 
 # ---------------------------------------------------------------------------
@@ -56,7 +57,7 @@ def _get_config() -> dict:
     """Read configuration from environment variables at call time."""
     endpoint = os.environ.get("FOUNDRY_PROJECT_ENDPOINT")
     if not endpoint:
-        raise EnvironmentError(
+        raise OSError(
             "FOUNDRY_PROJECT_ENDPOINT environment variable is required."
         )
     return {

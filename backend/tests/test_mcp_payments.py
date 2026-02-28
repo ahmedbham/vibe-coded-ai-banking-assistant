@@ -5,12 +5,13 @@ so that requests are served by the mock payments service FastAPI app directly.
 """
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 from fastmcp import Client
+from httpx import ASGITransport, AsyncClient
 
 import mcp.payments_mcp as payments_mcp_module
 from mcp.payments_mcp import mcp
-from services.payments_service import app as payments_app, _PAYMENTS
+from services.payments_service import _PAYMENTS
+from services.payments_service import app as payments_app
 
 
 @pytest.fixture(autouse=True)

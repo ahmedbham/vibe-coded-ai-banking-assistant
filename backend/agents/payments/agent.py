@@ -41,7 +41,8 @@ Your responsibilities:
   and beneficiary details, then submit the payment via the payments tool.
 - RepeatPayment flow: look up a previous payment in the transaction history using the
   transactions tool, then resubmit it via the payments tool.
-- Use the account tool to verify account details and available balance before submitting.
+- Use the account tool to verify account details and available
+  balance before submitting.
 
 Guidelines:
 - Always verify the account exists and has sufficient balance before submitting.
@@ -49,7 +50,8 @@ Guidelines:
 - Do not reveal full card numbers or authentication credentials.
 - Present monetary values with currency symbols and two decimal places.
 - Confirm the payment reference and status after submission.
-- If a requested account, beneficiary, or invoice is not found, inform the user politely.
+- If a requested account, beneficiary, or invoice is not found,
+  inform the user politely.
 """
 
 # ---------------------------------------------------------------------------
@@ -61,7 +63,7 @@ def _get_config() -> dict:
     """Read configuration from environment variables at call time."""
     endpoint = os.environ.get("FOUNDRY_PROJECT_ENDPOINT")
     if not endpoint:
-        raise EnvironmentError(
+        raise OSError(
             "FOUNDRY_PROJECT_ENDPOINT environment variable is required."
         )
     return {
