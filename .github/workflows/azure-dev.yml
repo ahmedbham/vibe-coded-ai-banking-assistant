@@ -9,6 +9,9 @@ permissions:
   id-token: write   # required for OIDC token
   contents: read
 
+env:
+  AZURE_RESOURCE_GROUP: VIDE_DEV-RG-1
+
 jobs:
   provision-and-deploy:
     name: azd provision & deploy
