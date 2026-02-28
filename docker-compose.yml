@@ -1,0 +1,198 @@
+# docker-compose.yml – local end-to-end development environment.
+#
+# Starts all backend services, MCP servers, and the Chat API in a single
+# Docker Compose stack so that `curl -X POST http://localhost:8000/chat`
+# works out of the box (once the required environment variables are set).
+#
+# Required environment variables (set in your shell or a .env file):
+#   AZURE_OPENAI_ENDPOINT            – Azure OpenAI service endpoint URL
+#   AZURE_CLIENT_ID                  – (optional) User-assigned managed identity
+#   AZURE_TENANT_ID                  – (optional) Azure AD tenant for local auth
+#   AZURE_CLIENT_SECRET              – (optional) Service principal secret
+#   DOCUMENT_INTELLIGENCE_ENDPOINT   – Azure Document Intelligence endpoint
+#   APPLICATIONINSIGHTS_CONNECTION_STRING – (optional) App Insights telemetry
+#
+# Usage:
+#   docker compose up --build
+#
+# The Chat API is exposed on http://localhost:8000
+#   curl -X POST http://localhost:8000/chat \
+#        -H "Content-Type: application/json" \
+#        -d '{"message":"What is my balance?","session_id":"local-1"}'
+
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Shared build context (all services live under backend/)
+# ---------------------------------------------------------------------------
+x-backend-build: &backend-build
+  context: ./backend
+  args:
+    BUILDKIT_INLINE_CACHE: "1"
+
+# Env vars forwarded to every backend container for Azure auth
+x-azure-env: &azure-env
+  AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+  AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+  AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Data / domain services
+  # --------------------------------------------------------------------------
+
+  account-service:
+    build:
+      <<: *backend-build
+      dockerfile: Dockerfile
+    command: uvicorn services.account_service:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    environment:
+      <<: *azure-env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  payments-service:
+    build:
+      <<: *backend-build
+      dockerfile: Dockerfile.payments
+    ports:
+      - "8002:8002"
+    environment:
+      <<: *azure-env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  transactions-service:
+    build:
+      <<: *backend-build
+      dockerfile: Dockerfile.transactions
+    ports:
+      - "8003:8003"
+    environment:
+      <<: *azure-env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # MCP servers
+  # --------------------------------------------------------------------------
+
+  account-mcp:
+    build:
+      <<: *backend-build
+      dockerfile: Dockerfile.account-mcp
+    ports:
+      - "9001:9001"
+    environment:
+      <<: *azure-env
+      ACCOUNT_SERVICE_URL: http://account-service:8001
+    depends_on:
+      account-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  transactions-mcp:
+    build:
+      <<: *backend-build
+      dockerfile: Dockerfile.transactions-mcp
+    ports:
+      - "9002:9002"
+    environment:
+      <<: *azure-env
+      TRANSACTIONS_SERVICE_URL: http://transactions-service:8003
+      ACCOUNT_SERVICE_URL: http://account-service:8001
+    depends_on:
+      transactions-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  payments-mcp:
+    build:
+      <<: *backend-build
+      dockerfile: Dockerfile.payments-mcp
+    ports:
+      - "9003:9003"
+    environment:
+      <<: *azure-env
+      PAYMENTS_SERVICE_URL: http://payments-service:8002
+    depends_on:
+      payments-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  document-mcp:
+    build:
+      <<: *backend-build
+      dockerfile: Dockerfile
+    command: uvicorn mcp.document_mcp:http_app --host 0.0.0.0 --port 9004
+    ports:
+      - "9004:9004"
+    environment:
+      <<: *azure-env
+      DOCUMENT_INTELLIGENCE_ENDPOINT: ${DOCUMENT_INTELLIGENCE_ENDPOINT:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9004/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Chat API (middle tier)
+  # --------------------------------------------------------------------------
+
+  chat-api:
+    build:
+      <<: *backend-build
+      dockerfile: Dockerfile
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *azure-env
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      FOUNDRY_MODEL_DEPLOYMENT_NAME: ${FOUNDRY_MODEL_DEPLOYMENT_NAME:-gpt-4.1}
+      ACCOUNT_MCP_URL: http://account-mcp:9001/mcp/
+      TRANSACTIONS_MCP_URL: http://transactions-mcp:9002/mcp/
+      PAYMENTS_MCP_URL: http://payments-mcp:9003/mcp/
+      DOCUMENT_MCP_URL: http://document-mcp:9004/mcp/
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
+    depends_on:
+      account-mcp:
+        condition: service_healthy
+      transactions-mcp:
+        condition: service_healthy
+      payments-mcp:
+        condition: service_healthy
+      document-mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
