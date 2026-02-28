@@ -445,5 +445,5 @@ class TestPaymentAgentIntegration:
         assert data["amount"] == 250.00
         assert data["currency"] == "USD"
         assert data["reference"] == "INV-2024-001"
-        assert "payment_id" in data
+        assert "confirmation_id" in data
         assert "status" in data
