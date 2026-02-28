@@ -67,7 +67,7 @@ def _make_mock_chat_client():
         return agent
 
     mock_client = MagicMock()
-    mock_client.create_agent.side_effect = _create_agent
+    mock_client.as_agent.side_effect = _create_agent
     return mock_client
 
 
@@ -181,8 +181,8 @@ class TestBuildWorkflow:
         mock_client = _make_mock_chat_client()
         mock_workflow = MagicMock()
         mock_builder = MagicMock()
-        mock_builder.set_coordinator.return_value = mock_builder
-        mock_builder.with_interaction_mode.return_value = mock_builder
+        mock_builder.with_start_agent.return_value = mock_builder
+        mock_builder.with_autonomous_mode.return_value = mock_builder
         mock_builder.build.return_value = mock_workflow
 
         mock_builder_cls = MagicMock(return_value=mock_builder)
@@ -200,7 +200,7 @@ class TestBuildWorkflow:
             workflow = _build_workflow(_get_config())
 
         assert workflow is mock_workflow
-        assert mock_client.create_agent.call_count == 4
+        assert mock_client.as_agent.call_count == 4
 
     def test_builds_workflow_with_autonomous_mode(
         self, monkeypatch: pytest.MonkeyPatch
@@ -210,8 +210,8 @@ class TestBuildWorkflow:
 
         mock_client = _make_mock_chat_client()
         mock_builder = MagicMock()
-        mock_builder.set_coordinator.return_value = mock_builder
-        mock_builder.with_interaction_mode.return_value = mock_builder
+        mock_builder.with_start_agent.return_value = mock_builder
+        mock_builder.with_autonomous_mode.return_value = mock_builder
         mock_builder.build.return_value = MagicMock()
 
         with (
@@ -226,7 +226,7 @@ class TestBuildWorkflow:
 
             _build_workflow(_get_config())
 
-        mock_builder.with_interaction_mode.assert_called_once_with("autonomous")
+        mock_builder.with_autonomous_mode.assert_called_once()
 
     def test_supervisor_is_set_as_coordinator(
         self, monkeypatch: pytest.MonkeyPatch
@@ -236,8 +236,8 @@ class TestBuildWorkflow:
 
         mock_client = _make_mock_chat_client()
         mock_builder = MagicMock()
-        mock_builder.set_coordinator.return_value = mock_builder
-        mock_builder.with_interaction_mode.return_value = mock_builder
+        mock_builder.with_start_agent.return_value = mock_builder
+        mock_builder.with_autonomous_mode.return_value = mock_builder
         mock_builder.build.return_value = MagicMock()
 
         with (
@@ -256,7 +256,7 @@ class TestBuildWorkflow:
 
             _build_workflow(_get_config())
 
-        coordinator_arg = mock_builder.set_coordinator.call_args[0][0]
+        coordinator_arg = mock_builder.with_start_agent.call_args[0][0]
         assert coordinator_arg.name == SUPERVISOR_NAME
 
     def test_specialist_agents_have_correct_names(
@@ -267,8 +267,8 @@ class TestBuildWorkflow:
 
         mock_client = _make_mock_chat_client()
         mock_builder = MagicMock()
-        mock_builder.set_coordinator.return_value = mock_builder
-        mock_builder.with_interaction_mode.return_value = mock_builder
+        mock_builder.with_start_agent.return_value = mock_builder
+        mock_builder.with_autonomous_mode.return_value = mock_builder
         mock_builder.build.return_value = MagicMock()
 
         with (
@@ -292,7 +292,7 @@ class TestBuildWorkflow:
 
         created_names = [
             call.kwargs["name"]
-            for call in mock_client.create_agent.call_args_list
+            for call in mock_client.as_agent.call_args_list
         ]
         assert SUPERVISOR_NAME in created_names
         assert ACCOUNT_AGENT_NAME in created_names
@@ -443,8 +443,8 @@ class TestSupervisorAgentIntegration:
 
         mock_client = _make_mock_chat_client()
         mock_builder = MagicMock()
-        mock_builder.set_coordinator.return_value = mock_builder
-        mock_builder.with_interaction_mode.return_value = mock_builder
+        mock_builder.with_start_agent.return_value = mock_builder
+        mock_builder.with_autonomous_mode.return_value = mock_builder
         mock_builder.build.return_value = MagicMock()
 
         with (
@@ -459,7 +459,7 @@ class TestSupervisorAgentIntegration:
 
         calls_by_name = {
             call.kwargs["name"]: call.kwargs.get("tools", [])
-            for call in mock_client.create_agent.call_args_list
+            for call in mock_client.as_agent.call_args_list
         }
         account_tools = calls_by_name.get(ACCOUNT_AGENT_NAME, [])
         assert any(

@@ -19,6 +19,15 @@ This repository is a **Multi-agent Banking Assistant** built with Python and the
 - **Microsoft Agent Framework (MAF)**: Core framework for building and orchestrating agents.
   - Use MAF's built-in tools and orchestration capabilities to compose agents.
   - To install the SDK in Python, use `pip install agent-framework --pre`
+  - use following code sample to create and run a simple agent using MAF:
+
+  ```python
+  client = AzureOpenAIResponsesClient(
+        project_endpoint=os.environ["AZURE_AI_PROJECT_ENDPOINT"],
+        deployment_name=os.environ["AZURE_OPENAI_RESPONSES_DEPLOYMENT_NAME"],
+        credential=credential,
+    )
+    ```
   - use following code sampple to create Foundry Account using bicep:
 
   ```bicep

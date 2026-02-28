@@ -9,18 +9,13 @@ dependencies = [
     "azure-identity>=1.17.0",
     "azure-storage-blob>=12.22.0",
     "azure-ai-documentintelligence>=1.0.0",
-    # opentelemetry – pin to versions compatible with agent-framework-core
-    "opentelemetry-sdk==1.39.0",
-    "opentelemetry-api==1.39.0",
-    "opentelemetry-semantic-conventions==0.60b0",
-    "opentelemetry-semantic-conventions-ai==0.4.13",
     "azure-monitor-opentelemetry>=1.6.0",
     "fastmcp>=2.0.0",
-    # Microsoft Agent Framework (pinned while in preview to avoid breaking changes)
-    "agent-framework-azure-ai==1.0.0b260107",
-    "agent-framework-core==1.0.0b260107",
-    # azure-ai-projects version compatible with agent-framework-azure-ai
-    "azure-ai-projects==2.0.0b1",
+    # Microsoft Agent Framework – let the meta-packages manage transitive deps
+    # (opentelemetry, azure-ai-projects, etc.) to avoid version conflicts.
+    "agent-framework-azure-ai>=1.0.0rc1",
+    "agent-framework-core>=1.0.0rc1",
+    "agent-framework-orchestrations>=1.0.0b0",
 ]
 
 [project.optional-dependencies]

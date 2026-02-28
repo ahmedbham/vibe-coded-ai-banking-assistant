@@ -14,8 +14,8 @@ Architecture
 ------------
 The supervisor is built with ``HandoffBuilder`` and three specialist agents,
 all backed by ``AzureOpenAIChatClient`` with the appropriate MCP tool bindings.
-Autonomous mode (``with_interaction_mode("autonomous")``) is enabled so the
-workflow completes without waiting for human input after each specialist turn.
+Autonomous mode (``with_autonomous_mode()``) is enabled so the workflow
+completes without waiting for human input after each specialist turn.
 
 Environment variables
 ---------------------
@@ -31,8 +31,8 @@ from __future__ import annotations
 
 import os
 
-from agent_framework import MCPStreamableHTTPTool, Role
-from agent_framework._workflows import HandoffBuilder
+from agent_framework import MCPStreamableHTTPTool
+from agent_framework.orchestrations import HandoffBuilder
 from agent_framework.azure import AzureOpenAIChatClient
 from azure.identity import DefaultAzureCredential
 
@@ -177,13 +177,13 @@ def _build_workflow(config: dict):
     )
 
     # Supervisor / triage agent – no tools; routes via handoff tool calls
-    supervisor = chat_client.create_agent(
+    supervisor = chat_client.as_agent(
         name=SUPERVISOR_NAME,
         instructions=SUPERVISOR_SYSTEM_PROMPT,
     )
 
     # Account specialist agent
-    account_agent = chat_client.create_agent(
+    account_agent = chat_client.as_agent(
         name=ACCOUNT_AGENT_NAME,
         instructions=ACCOUNT_AGENT_SYSTEM_PROMPT,
         tools=[
@@ -200,7 +200,7 @@ def _build_workflow(config: dict):
     )
 
     # Transaction specialist agent
-    transaction_agent = chat_client.create_agent(
+    transaction_agent = chat_client.as_agent(
         name=TRANSACTION_AGENT_NAME,
         instructions=TRANSACTION_AGENT_SYSTEM_PROMPT,
         tools=[
@@ -226,7 +226,7 @@ def _build_workflow(config: dict):
     )
 
     # Payment specialist agent
-    payment_agent = chat_client.create_agent(
+    payment_agent = chat_client.as_agent(
         name=PAYMENT_AGENT_NAME,
         instructions=PAYMENT_AGENT_SYSTEM_PROMPT,
         tools=[
@@ -274,8 +274,8 @@ def _build_workflow(config: dict):
             name="banking_supervisor",
             participants=[supervisor, account_agent, transaction_agent, payment_agent],
         )
-        .set_coordinator(supervisor)
-        .with_interaction_mode("autonomous")
+        .with_start_agent(supervisor)
+        .with_autonomous_mode()
         .build()
     )
 
@@ -298,7 +298,7 @@ def _extract_response_text(outputs: list) -> str:
         return ""
     conversation = outputs[-1]
     for msg in reversed(conversation):
-        if msg.role == Role.ASSISTANT and msg.text:
+        if msg.role == "assistant" and msg.text:
             return msg.text
     return ""
 

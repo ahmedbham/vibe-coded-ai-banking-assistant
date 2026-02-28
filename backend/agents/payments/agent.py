@@ -23,7 +23,7 @@ import os
 from contextlib import asynccontextmanager
 
 from agent_framework import MCPStreamableHTTPTool
-from agent_framework.azure import AzureAIClient
+from agent_framework.azure import AzureOpenAIResponsesClient
 from azure.identity.aio import DefaultAzureCredential
 
 # ---------------------------------------------------------------------------
@@ -155,11 +155,11 @@ async def create_payment_agent():
 
     async with (
         DefaultAzureCredential() as credential,
-        AzureAIClient(
+        AzureOpenAIResponsesClient(
             project_endpoint=config["project_endpoint"],
-            model_deployment_name=config["model_deployment_name"],
+            deployment_name=config["model_deployment_name"],
             credential=credential,
-        ).create_agent(
+        ).as_agent(
             name=AGENT_NAME,
             instructions=SYSTEM_PROMPT,
             tools=tools,
