@@ -59,3 +59,10 @@ services:
     docker:
       path: ./Dockerfile.payments-mcp
       context: .
+  chat-api:
+    project: ./backend
+    language: py
+    host: containerapp
+    docker:
+      path: ./Dockerfile.chat-api
+      context: .
