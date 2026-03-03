@@ -66,3 +66,10 @@ services:
     docker:
       path: ./Dockerfile.chat-api
       context: .
+  simple-chat:
+    project: ./frontend/simple-chat
+    language: js
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      context: .
