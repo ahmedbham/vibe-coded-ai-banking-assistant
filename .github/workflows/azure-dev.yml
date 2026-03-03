@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  AZURE_RESOURCE_GROUP: VIDE_DEV-RG-1
+  AZURE_RESOURCE_GROUP: rg-banking-dev
 
 jobs:
   provision-and-deploy:
