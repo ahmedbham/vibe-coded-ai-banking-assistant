@@ -4,7 +4,7 @@ Unit tests
 ----------
 - POST /chat returns 200 and streams the agent response.
 - POST /chat with empty session_id still works.
-- POST /chat returns 500 when AZURE_OPENAI_ENDPOINT is missing.
+- POST /chat returns 500 when FOUNDRY_PROJECT_ENDPOINT is missing.
 - POST /chat returns 500 when the supervisor agent raises an unexpected error.
 - POST /chat body with only ``message`` (session_id defaults to "") works.
 - GET /health returns {"status": "ok"}.
@@ -146,7 +146,7 @@ class TestChatEndpointErrors:
         with patch(
             "api.chat.run_query",
             new_callable=AsyncMock,
-            side_effect=OSError("AZURE_OPENAI_ENDPOINT environment variable is required."),
+            side_effect=OSError("FOUNDRY_PROJECT_ENDPOINT environment variable is required."),
         ):
             response = await client.post(
                 "/chat",
@@ -154,7 +154,7 @@ class TestChatEndpointErrors:
             )
 
         assert response.status_code == 500
-        assert "AZURE_OPENAI_ENDPOINT" in response.json()["detail"]
+        assert "FOUNDRY_PROJECT_ENDPOINT" in response.json()["detail"]
 
     async def test_returns_500_on_unexpected_error(
         self, client: AsyncClient

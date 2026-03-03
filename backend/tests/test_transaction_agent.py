@@ -65,7 +65,7 @@ def _patch_maf(response_text: str = "Here are your transactions."):
     mock_credential.__aenter__ = AsyncMock(return_value=mock_credential)
     mock_credential.__aexit__ = AsyncMock(return_value=False)
 
-    # Mock AzureOpenAIResponsesClient.as_agent returning mock_agent (an async CM)
+    # Mock AzureAIAgentClient.as_agent returning mock_agent (an async CM)
     mock_azure_client = MagicMock()
     mock_azure_client.as_agent = MagicMock(return_value=mock_agent)
 
@@ -183,7 +183,7 @@ class TestCreateTransactionAgent:
                 mock_credential_cls,
             ),
             patch(
-                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                "agents.transactions.agent.AzureAIAgentClient",
                 mock_client_cls,
             ),
         ):
@@ -195,7 +195,7 @@ class TestCreateTransactionAgent:
             async with create_transaction_agent() as agent:
                 assert agent is mock_agent
 
-        # Verify AzureOpenAIResponsesClient was constructed with the Foundry endpoint
+        # Verify AzureAIAgentClient was constructed with the Foundry endpoint
         mock_client_cls.assert_called_once()
         call_kwargs = mock_client_cls.call_args.kwargs
         assert call_kwargs["project_endpoint"] == MOCK_ENDPOINT
@@ -223,7 +223,7 @@ class TestCreateTransactionAgent:
                 mock_credential_cls,
             ),
             patch(
-                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                "agents.transactions.agent.AzureAIAgentClient",
                 mock_client_cls,
             ),
         ):
@@ -233,7 +233,7 @@ class TestCreateTransactionAgent:
                 pass
 
         call_kwargs = mock_client_cls.call_args.kwargs
-        assert call_kwargs["deployment_name"] == "gpt-4.1-mini"
+        assert call_kwargs["model_deployment_name"] == "gpt-4.1-mini"
 
 
 # ---------------------------------------------------------------------------
@@ -256,7 +256,7 @@ class TestRunQuery:
                 mock_credential_cls,
             ),
             patch(
-                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                "agents.transactions.agent.AzureAIAgentClient",
                 mock_client_cls,
             ),
         ):
@@ -283,7 +283,7 @@ class TestRunQuery:
                 mock_credential_cls,
             ),
             patch(
-                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                "agents.transactions.agent.AzureAIAgentClient",
                 mock_client_cls,
             ),
         ):
@@ -309,7 +309,7 @@ class TestRunQuery:
                 mock_credential_cls,
             ),
             patch(
-                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                "agents.transactions.agent.AzureAIAgentClient",
                 mock_client_cls,
             ),
         ):
@@ -337,7 +337,7 @@ class TestRunQuery:
                 mock_credential_cls,
             ),
             patch(
-                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                "agents.transactions.agent.AzureAIAgentClient",
                 mock_client_cls,
             ),
         ):
@@ -381,7 +381,7 @@ class TestTransactionAgentIntegration:
                 mock_credential_cls,
             ),
             patch(
-                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                "agents.transactions.agent.AzureAIAgentClient",
                 mock_client_cls,
             ),
         ):
@@ -411,7 +411,7 @@ class TestTransactionAgentIntegration:
                 mock_credential_cls,
             ),
             patch(
-                "agents.transactions.agent.AzureOpenAIResponsesClient",
+                "agents.transactions.agent.AzureAIAgentClient",
                 mock_client_cls,
             ),
         ):
