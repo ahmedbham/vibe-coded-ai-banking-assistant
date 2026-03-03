@@ -13,13 +13,13 @@ Intent routing (via triage agent's system prompt)
 Architecture
 ------------
 The supervisor is built with ``HandoffBuilder`` and three specialist agents,
-all backed by ``AzureOpenAIChatClient`` with the appropriate MCP tool bindings.
+all backed by ``AzureAIAgentClient`` with the appropriate MCP tool bindings.
 Autonomous mode (``with_autonomous_mode()``) is enabled so the workflow
 completes without waiting for human input after each specialist turn.
 
 Environment variables
 ---------------------
-AZURE_OPENAI_ENDPOINT           (required) Azure OpenAI service endpoint URL.
+FOUNDRY_PROJECT_ENDPOINT        (required) Azure AI Foundry project endpoint URL.
 FOUNDRY_MODEL_DEPLOYMENT_NAME   (optional) Model deployment name, default: gpt-4.1
 ACCOUNT_MCP_URL                 (optional) Account MCP URL, default: http://localhost:9001/mcp/
 PAYMENTS_MCP_URL                (optional) Payments MCP URL, default: http://localhost:9003/mcp/
@@ -32,7 +32,7 @@ from __future__ import annotations
 import os
 
 from agent_framework import MCPStreamableHTTPTool
-from agent_framework.azure import AzureOpenAIChatClient
+from agent_framework.azure import AzureAIAgentClient
 from agent_framework.orchestrations import HandoffBuilder
 from azure.identity import DefaultAzureCredential
 
@@ -127,13 +127,13 @@ Guidelines:
 
 def _get_config() -> dict:
     """Read configuration from environment variables at call time."""
-    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    endpoint = os.environ.get("FOUNDRY_PROJECT_ENDPOINT")
     if not endpoint:
         raise OSError(
-            "AZURE_OPENAI_ENDPOINT environment variable is required."
+            "FOUNDRY_PROJECT_ENDPOINT environment variable is required."
         )
     return {
-        "azure_openai_endpoint": endpoint,
+        "project_endpoint": endpoint,
         "model_deployment_name": os.environ.get(
             "FOUNDRY_MODEL_DEPLOYMENT_NAME", "gpt-4.1"
         ),
@@ -170,9 +170,9 @@ def _build_workflow(config: dict):
         A fully configured MAF Workflow ready to run.
     """
     credential = DefaultAzureCredential()
-    chat_client = AzureOpenAIChatClient(
-        endpoint=config["azure_openai_endpoint"],
-        deployment_name=config["model_deployment_name"],
+    chat_client = AzureAIAgentClient(
+        project_endpoint=config["project_endpoint"],
+        model_deployment_name=config["model_deployment_name"],
         credential=credential,
     )
 

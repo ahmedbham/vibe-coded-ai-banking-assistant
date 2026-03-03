@@ -66,7 +66,7 @@ def _patch_maf(response_text: str = "Here is your account info."):
     mock_credential.__aenter__ = AsyncMock(return_value=mock_credential)
     mock_credential.__aexit__ = AsyncMock(return_value=False)
 
-    # Mock AzureOpenAIResponsesClient.as_agent returning mock_agent (an async CM)
+    # Mock AzureAIAgentClient.as_agent returning mock_agent (an async CM)
     mock_azure_client = MagicMock()
     mock_azure_client.as_agent = MagicMock(return_value=mock_agent)
 
@@ -168,14 +168,14 @@ class TestCreateAccountAgent:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch("agents.account.agent.AzureAIAgentClient", mock_client_cls),
         ):
             from agents.account.agent import SYSTEM_PROMPT, create_account_agent
 
             async with create_account_agent() as agent:
                 assert agent is mock_agent
 
-        # Verify AzureOpenAIResponsesClient was constructed with the Foundry endpoint
+        # Verify AzureAIAgentClient was constructed with the Foundry endpoint
         mock_client_cls.assert_called_once()
         call_kwargs = mock_client_cls.call_args.kwargs
         assert call_kwargs["project_endpoint"] == MOCK_ENDPOINT
@@ -199,7 +199,7 @@ class TestCreateAccountAgent:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch("agents.account.agent.AzureAIAgentClient", mock_client_cls),
         ):
             from agents.account.agent import create_account_agent
 
@@ -207,7 +207,7 @@ class TestCreateAccountAgent:
                 pass
 
         call_kwargs = mock_client_cls.call_args.kwargs
-        assert call_kwargs["deployment_name"] == "gpt-4.1-mini"
+        assert call_kwargs["model_deployment_name"] == "gpt-4.1-mini"
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +226,7 @@ class TestRunQuery:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch("agents.account.agent.AzureAIAgentClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -247,7 +247,7 @@ class TestRunQuery:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch("agents.account.agent.AzureAIAgentClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -267,7 +267,7 @@ class TestRunQuery:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch("agents.account.agent.AzureAIAgentClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -289,7 +289,7 @@ class TestRunQuery:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch("agents.account.agent.AzureAIAgentClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -326,7 +326,7 @@ class TestAccountAgentIntegration:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch("agents.account.agent.AzureAIAgentClient", mock_client_cls),
         ):
             from agents.account.agent import run_query
 
@@ -347,7 +347,7 @@ class TestAccountAgentIntegration:
 
         with (
             patch("agents.account.agent.DefaultAzureCredential", mock_credential_cls),
-            patch("agents.account.agent.AzureOpenAIResponsesClient", mock_client_cls),
+            patch("agents.account.agent.AzureAIAgentClient", mock_client_cls),
         ):
             from agents.account.agent import create_account_agent
 

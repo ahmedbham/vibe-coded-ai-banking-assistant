@@ -28,7 +28,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
-MOCK_ENDPOINT = "https://mock-openai.openai.azure.com/"
+MOCK_ENDPOINT = "https://mock-project.api.azureml.ms"
 MOCK_MODEL = "gpt-4.1"
 MOCK_ACCOUNT_MCP_URL = "http://localhost:9001/mcp/"
 MOCK_PAYMENTS_MCP_URL = "http://localhost:9003/mcp/"
@@ -60,7 +60,7 @@ def _make_workflow_run_result(conversation: list | None = None):
 
 
 def _make_mock_chat_client():
-    """Return a mock AzureOpenAIChatClient that produces named mock agents."""
+    """Return a mock AzureAIAgentClient that produces named mock agents."""
     def _create_agent(*, name: str, instructions: str | None = None, tools=None, **kw):
         agent = MagicMock()
         agent.name = name
@@ -80,14 +80,14 @@ class TestGetConfig:
     def test_raises_when_endpoint_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+        monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
         from agents.supervisor.agent import _get_config
 
-        with pytest.raises(OSError, match="AZURE_OPENAI_ENDPOINT"):
+        with pytest.raises(OSError, match="FOUNDRY_PROJECT_ENDPOINT"):
             _get_config()
 
     def test_returns_all_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", MOCK_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", MOCK_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_MODEL_DEPLOYMENT_NAME", "gpt-4.1-mini")
         monkeypatch.setenv("ACCOUNT_MCP_URL", "http://myserver:9001/mcp/")
         monkeypatch.setenv("PAYMENTS_MCP_URL", "http://myserver:9003/mcp/")
@@ -96,7 +96,7 @@ class TestGetConfig:
         from agents.supervisor.agent import _get_config
 
         config = _get_config()
-        assert config["azure_openai_endpoint"] == MOCK_ENDPOINT
+        assert config["project_endpoint"] == MOCK_ENDPOINT
         assert config["model_deployment_name"] == "gpt-4.1-mini"
         assert config["account_mcp_url"] == "http://myserver:9001/mcp/"
         assert config["payments_mcp_url"] == "http://myserver:9003/mcp/"
@@ -106,7 +106,7 @@ class TestGetConfig:
     def test_defaults_when_optional_vars_absent(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", MOCK_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", MOCK_ENDPOINT)
         monkeypatch.delenv("FOUNDRY_MODEL_DEPLOYMENT_NAME", raising=False)
         monkeypatch.delenv("ACCOUNT_MCP_URL", raising=False)
         monkeypatch.delenv("PAYMENTS_MCP_URL", raising=False)
@@ -176,7 +176,7 @@ class TestBuildWorkflow:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """_build_workflow must create supervisor + 3 specialist agents."""
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", MOCK_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", MOCK_ENDPOINT)
 
         mock_client = _make_mock_chat_client()
         mock_workflow = MagicMock()
@@ -189,7 +189,7 @@ class TestBuildWorkflow:
 
         with (
             patch(
-                "agents.supervisor.agent.AzureOpenAIChatClient",
+                "agents.supervisor.agent.AzureAIAgentClient",
                 return_value=mock_client,
             ),
             patch("agents.supervisor.agent.DefaultAzureCredential"),
@@ -206,7 +206,7 @@ class TestBuildWorkflow:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """_build_workflow must enable autonomous interaction mode."""
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", MOCK_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", MOCK_ENDPOINT)
 
         mock_client = _make_mock_chat_client()
         mock_builder = MagicMock()
@@ -216,7 +216,7 @@ class TestBuildWorkflow:
 
         with (
             patch(
-                "agents.supervisor.agent.AzureOpenAIChatClient",
+                "agents.supervisor.agent.AzureAIAgentClient",
                 return_value=mock_client,
             ),
             patch("agents.supervisor.agent.DefaultAzureCredential"),
@@ -232,7 +232,7 @@ class TestBuildWorkflow:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The supervisor agent must be set as the workflow coordinator."""
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", MOCK_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", MOCK_ENDPOINT)
 
         mock_client = _make_mock_chat_client()
         mock_builder = MagicMock()
@@ -242,7 +242,7 @@ class TestBuildWorkflow:
 
         with (
             patch(
-                "agents.supervisor.agent.AzureOpenAIChatClient",
+                "agents.supervisor.agent.AzureAIAgentClient",
                 return_value=mock_client,
             ),
             patch("agents.supervisor.agent.DefaultAzureCredential"),
@@ -263,7 +263,7 @@ class TestBuildWorkflow:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """All four agents must be created with their designated names."""
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", MOCK_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", MOCK_ENDPOINT)
 
         mock_client = _make_mock_chat_client()
         mock_builder = MagicMock()
@@ -273,7 +273,7 @@ class TestBuildWorkflow:
 
         with (
             patch(
-                "agents.supervisor.agent.AzureOpenAIChatClient",
+                "agents.supervisor.agent.AzureAIAgentClient",
                 return_value=mock_client,
             ),
             patch("agents.supervisor.agent.DefaultAzureCredential"),
@@ -308,7 +308,7 @@ class TestBuildWorkflow:
 class TestRunQuery:
     @pytest.fixture(autouse=True)
     def set_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", MOCK_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", MOCK_ENDPOINT)
 
     async def test_balance_query_returns_response(self) -> None:
         """run_query must return the workflow's last assistant message."""
@@ -391,7 +391,7 @@ class TestSupervisorAgentIntegration:
 
     @pytest.fixture(autouse=True)
     def set_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", MOCK_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", MOCK_ENDPOINT)
         monkeypatch.setenv("ACCOUNT_MCP_URL", MOCK_ACCOUNT_MCP_URL)
         monkeypatch.setenv("PAYMENTS_MCP_URL", MOCK_PAYMENTS_MCP_URL)
         monkeypatch.setenv("TRANSACTIONS_MCP_URL", MOCK_TRANSACTIONS_MCP_URL)
@@ -449,7 +449,7 @@ class TestSupervisorAgentIntegration:
 
         with (
             patch(
-                "agents.supervisor.agent.AzureOpenAIChatClient",
+                "agents.supervisor.agent.AzureAIAgentClient",
                 return_value=mock_client,
             ),
             patch("agents.supervisor.agent.DefaultAzureCredential"),
