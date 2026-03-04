@@ -22,9 +22,9 @@ This repository is a **Multi-agent Banking Assistant** built with Python and the
   - use following code sample to create and run a simple agent using MAF:
 
   ```python
-  client = AzureOpenAIResponsesClient(
-        project_endpoint=os.environ["AZURE_AI_PROJECT_ENDPOINT"],
-        deployment_name=os.environ["AZURE_OPENAI_RESPONSES_DEPLOYMENT_NAME"],
+  client = AzureAIAgentClient(
+        project_endpoint=config["project_endpoint"],
+        model_deployment_name=config["model_deployment_name"],
         credential=credential,
     )
     ```
