@@ -14,14 +14,14 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' exist
   resource model 'deployments' = {
     name: modelDeploymentName
     sku: {
-      capacity: 50
+      capacity: 1
       name: 'GlobalStandard'
     }
     properties: {
       model: {
         format: 'OpenAI'
-        name: 'gpt-4o'
-        version: '2024-11-20'
+        name: 'gpt-4.1'
+        version: '2025-04-14'
       }
       versionUpgradeOption: 'NoAutoUpgrade'
       raiPolicyName: 'Microsoft.DefaultV2'
