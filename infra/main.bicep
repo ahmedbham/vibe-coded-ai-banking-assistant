@@ -34,6 +34,7 @@ var transactionsMcpAppName = 'ca-transactions-mcp-${suffix}'
 var paymentsMcpAppName = 'ca-payments-mcp-${suffix}'
 var chatApiAppName = 'ca-chat-api-${suffix}'
 var simpleChatAppName = 'ca-simple-chat-${suffix}'
+var bankingWebAppName = 'ca-banking-web-${suffix}'
 var foundryName = 'aif-${suffix}-${uniqueSuffix}'
 var foundryProjectName = 'aifp-${suffix}'
 var modelDeploymentName = 'agent-model'
@@ -272,6 +273,22 @@ module simpleChatApp 'modules/container-app-simple-chat.bicep' = {
   }
 }
 
+module bankingWebApp 'modules/container-app-banking-web.bicep' = {
+  name: 'deploy-banking-web'
+  params: {
+    location: location
+    containerAppName: bankingWebAppName
+    containerAppsEnvId: containerAppsEnv.outputs.id
+    acrLoginServer: containerRegistry.outputs.loginServer
+    managedIdentityId: identity.outputs.id
+    managedIdentityClientId: identity.outputs.clientId
+    appInsightsConnectionString: monitor.outputs.appInsightsConnectionString
+    environment: environment
+    project: project
+    owner: owner
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs – human-readable
 // ---------------------------------------------------------------------------
@@ -333,6 +350,9 @@ output chatApiFqdn string = chatApiApp.outputs.fqdn
 
 @description('FQDN of the Simple Chat Container App.')
 output simpleChatFqdn string = simpleChatApp.outputs.fqdn
+
+@description('FQDN of the Banking Web Container App.')
+output bankingWebFqdn string = bankingWebApp.outputs.fqdn
 
 @description('Endpoint of the Foundry account (Azure OpenAI compatible).')
 output foundryEndpoint string = aiFoundry.outputs.endpoint
