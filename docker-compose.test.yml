@@ -1,0 +1,52 @@
+# docker-compose.test.yml – run the full test suite inside containers.
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml run --rm backend-tests
+#   docker compose -f docker-compose.test.yml run --rm simple-chat-tests
+#   docker compose -f docker-compose.test.yml run --rm banking-web-tests
+#
+# Run all tests:
+#   docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Backend tests (pytest)
+  # --------------------------------------------------------------------------
+
+  backend-tests:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "pytest", "-v", "--tb=short"]
+    environment:
+      AZURE_OPENAI_ENDPOINT: "https://test.openai.azure.com"
+      FOUNDRY_MODEL_DEPLOYMENT_NAME: "gpt-4.1"
+      ACCOUNT_MCP_URL: "http://localhost:9001/mcp/"
+      TRANSACTIONS_MCP_URL: "http://localhost:9002/mcp/"
+      PAYMENTS_MCP_URL: "http://localhost:9003/mcp/"
+      DOCUMENT_MCP_URL: "http://localhost:9004/mcp/"
+
+  # --------------------------------------------------------------------------
+  # Simple Chat UI tests (Vitest)
+  # --------------------------------------------------------------------------
+
+  simple-chat-tests:
+    build:
+      context: ./frontend/simple-chat
+      dockerfile: Dockerfile
+      target: build
+    command: ["npm", "run", "test"]
+    working_dir: /app
+
+  # --------------------------------------------------------------------------
+  # Banking Web UI tests (Vitest)
+  # --------------------------------------------------------------------------
+
+  banking-web-tests:
+    build:
+      context: ./frontend/banking-web
+      dockerfile: Dockerfile
+      target: build
+    command: ["npm", "run", "test"]
+    working_dir: /app

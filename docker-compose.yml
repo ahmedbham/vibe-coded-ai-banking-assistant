@@ -217,3 +217,27 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # --------------------------------------------------------------------------
+  # Banking Web UI (frontend)
+  # --------------------------------------------------------------------------
+
+  banking-web:
+    build:
+      context: ./frontend/banking-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+        VITE_ACCOUNT_SERVICE_URL: http://localhost:8001
+        VITE_PAYMENTS_SERVICE_URL: http://localhost:8002
+        VITE_TRANSACTIONS_SERVICE_URL: http://localhost:8003
+    ports:
+      - "3001:80"
+    depends_on:
+      chat-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
