@@ -73,3 +73,10 @@ services:
     docker:
       path: ./Dockerfile
       context: .
+  banking-web:
+    project: ./frontend/banking-web
+    language: js
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      context: .
