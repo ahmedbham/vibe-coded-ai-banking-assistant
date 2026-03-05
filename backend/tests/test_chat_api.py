@@ -20,7 +20,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
@@ -146,7 +145,9 @@ class TestChatEndpointErrors:
         with patch(
             "api.chat.run_query",
             new_callable=AsyncMock,
-            side_effect=OSError("FOUNDRY_PROJECT_ENDPOINT environment variable is required."),
+            side_effect=OSError(
+                "FOUNDRY_PROJECT_ENDPOINT environment variable is required."
+            ),
         ):
             response = await client.post(
                 "/chat",

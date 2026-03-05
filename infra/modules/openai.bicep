@@ -15,12 +15,12 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' exist
     name: modelDeploymentName
     sku: {
       capacity: 50
-      name: 'GlobalStandard'
+      name: 'DataZoneStandard'
     }
     properties: {
       model: {
         format: 'OpenAI'
-        name: 'gpt-4o'
+        name: 'gpt-4.1'
         version: '2024-11-20'
       }
       versionUpgradeOption: 'NoAutoUpgrade'

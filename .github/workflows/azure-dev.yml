@@ -42,7 +42,7 @@ jobs:
           AZURE_CORE_OUTPUT: none
 
       - name: azd provision (infrastructure)
-        run: azd env select dev || azd env new dev --no-prompt
+        run: azd provision --no-prompt
         env:
           AZURE_CORE_OUTPUT: none
           AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
