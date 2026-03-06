@@ -35,7 +35,7 @@ jobs:
       GH_ACTIONS_ENVIRONMENT: dev
 
       # Default location (override via environment variables if desired)
-      AZURE_LOCATION: westus2
+      AZURE_LOCATION: eastus2
 
       # Naming/TTL guardrails for ephemeral test RGs
       IAC_PREFIX: copilot-iac

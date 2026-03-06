@@ -58,7 +58,7 @@ jobs:
           set -o pipefail
           bash scripts/iac-validate.sh 2>&1 | tee /tmp/iac-validate.log
         env:
-          AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'westus2' }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'eastus2' }}
 
       - name: Write failure summary
         if: failure()

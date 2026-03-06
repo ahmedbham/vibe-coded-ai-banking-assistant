@@ -76,8 +76,8 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-10-01-preview' exist
   resource model 'deployments' = {
     name: 'agent-model'
     sku: {
-      capacity: 50
-      name: 'DataZoneStandard' // Production readiness, use provisioned deployments with automatic spillover https://learn.microsoft.com/azure/ai-services/openai/how-to/spillover-traffic-management.
+      capacity: 1
+      name: 'GlobalStandard' // Production readiness, use provisioned deployments with automatic spillover https://learn.microsoft.com/azure/ai-services/openai/how-to/spillover-traffic-management.
     }
     properties: {
       model: {
