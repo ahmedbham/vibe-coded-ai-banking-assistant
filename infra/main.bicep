@@ -6,7 +6,7 @@ param location string = resourceGroup().location
 param environment string = 'dev'
 
 @description('Short project identifier used in resource names.')
-param project string = 'bham-banking'
+param project string = 'bham'
 
 @description('Owner tag applied to every resource.')
 param owner string = 'platform-team'
