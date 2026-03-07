@@ -18,6 +18,11 @@ _this_dir = os.path.dirname(os.path.abspath(__file__))
 # Scan sys.path for the pip-installed mcp package directory and prepend it
 # to __path__ so that pip submodules (mcp.types, mcp.server, …) are found.
 for _search_dir in sys.path:
+    # Only consider directories inside a site-packages tree – this avoids
+    # picking up an unrelated local directory and limits the exec() below
+    # to code already installed via pip.
+    if "site-packages" not in _search_dir:
+        continue
     _candidate = os.path.join(_search_dir, "mcp")
     if (
         os.path.isdir(_candidate)
